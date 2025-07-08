@@ -4,3 +4,4 @@
 
 Debug/*
 !Debug/EXP_V120.hex
+!Debug/EXP_V120.elf
