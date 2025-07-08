@@ -172,8 +172,8 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
 ### ref_temp_set
 - **Description**: Sets the reference temperature for control logic in auto mode (°C).
 - **Format**: `ref_temp_set [temp]`
-- **Example**: `ref_temp_set 25`
-  - Output: Sets the reference temperature to 25°C.
+- **Example**: `ref_temp_set 252`
+  - Output: Sets the reference temperature to 25.2°C.
 
 ### ref_temp_get
 - **Description**: Reads the current reference temperature setting.
@@ -182,16 +182,16 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
   - Output: Returns the current reference temperature.
 
 ### ref_ntc_set
-- **Description**: Selects NTC channels for temperature feedback in auto mode (0: OFF, 1: ON).
-- **Format**: `ref_ntc_set [ntc0] [ntc1] [ntc2] [ntc3] [ntc4] [ntc5] [ntc6] [ntc7]`
-- **Example**: `ref_ntc_set 1 0 0 0 0 0 0 0`
-  - Output: Selects NTC0 for temperature feedback.
+- **Description**: Selects NTC channel for temperature feedback in auto mode (0: OFF, 1: ON).
+- **Format**: `ref_ntc_set [ntc_idx]`
+- **Example**: `ref_ntc_set 1`
+  - Output: Selects NTC1 for temperature feedback.
 
 ### ref_ntc_get
 - **Description**: Retrieves the currently selected NTC channels for temperature control.
 - **Format**: `ref_ntc_get`
 - **Example**: `ref_ntc_get`
-  - Output: Returns the status (0/1) of NTC channels used for feedback.
+  - Output: Returns the NTC channels used for feedback.
 
 ## Auto Control Commands
 
@@ -227,7 +227,7 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
 - **Example**: `laser_get_current 0`
   - Output: Returns the current setting for the internal laser.
 - **Example**: `laser_get_current a`
-  - Output: Returns the current settings for both internal and external lasers.
+  - Output: Returns the current settings for both internal and external lasers. Example: 255 is 25.5mA
 
 ### laser_int_switch_on
 - **Description**: Turns on the specified internal laser position.
@@ -258,14 +258,14 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
 ### exp_set_profile
 - **Description**: Configures the experiment profile with sampling rate, photodiode position, laser current percentage, and timing parameters.
 - **Format**: `exp_set_profile [sampling_rate] [pos] [laser_percent] [pre_time] [experiment_time] [post_time]`
-  - `sampling_rate`: Sampling rate in kHz
+  - `sampling_rate`: Sampling rate in Hz
   - `pos`: Photodiode position
   - `laser_percent`: Laser current percentage
-  - `pre_time`: Pre-measurement time (µs)
-  - `experiment_time`: Sampling time (µs)
-  - `post_time`: Post-measurement time (µs)
-- **Example**: `exp_set_profile 10 1 50 1000 2000 1000`
-  - Output: Sets experiment with 10 kHz sampling, photodiode at position 1, 50% laser current, 1000 µs pre-time, 2000 µs sampling time, and 1000 µs post-time.
+  - `pre_time`: Pre-measurement time (ms)
+  - `experiment_time`: Sampling time (ms)
+  - `post_time`: Post-measurement time (ms)
+- **Example**: `exp_set_profile 10000 1 50 1000 2000 1000`
+  - Output: Sets experiment with 10 kHz sampling, photodiode at position 1, 50% laser current, 1000 ms pre-time, 2000 ms sampling time, and 1000 ms post-time.
 
 ### exp_get_profile
 - **Description**: Retrieves the current experiment profile settings.
@@ -282,8 +282,8 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
 ### exp_ram_read
 - **Description**: Reads measurement results stored in RAM at the specified address and number of samples.
 - **Format**: `exp_ram_read [address] [num_sample]`
-- **Example**: `exp_ram_read 0 100`
-  - Output: Reads 100 samples starting from address 0 in RAM.
+- **Example**: `exp_ram_read 0 1000`
+  - Output: Reads 1000 samples starting from address 0 in RAM.
 
 ## Notes
 - Ensure the correct command format is used as specified above to avoid errors.

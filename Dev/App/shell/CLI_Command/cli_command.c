@@ -306,10 +306,10 @@ static void CMD_PWR_5V_Set(EmbeddedCli *cli, char *args, void *context) {
 
 static void CMD_PWR_5V_Get(EmbeddedCli *cli, char *args, void *context) {
 	if (temperature_control_is_powered_on(ptemperature_control_task)) {
-		cli_printf(cli,"Powered on\r\n");
+		cli_printf(cli, "OK\r\n");
 	}
 	else {
-		cli_printf(cli,"Powered off\r\n");
+		cli_printf(cli, "ERROR\r\n");
 	}
 }
 
@@ -380,7 +380,7 @@ static void CMD_TEC_Set_Profile_Volt(EmbeddedCli *cli, char *args, void *context
 		}
 
 	temperature_control_profile_tec_voltage_set(ptemperature_control_task,volt);
-	cli_printf(cli, "OK \r\n");
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_TEC_Get_Profile_Volt(EmbeddedCli *cli, char *args, void *context) {
@@ -433,7 +433,6 @@ static void CMD_TEC_Profile_Get(EmbeddedCli *cli, char *args, void *context)
 		if (tec_profile & (1<<i)) cli_printf(cli, "tec[%d] registered\r\n",i);
 		else cli_printf(cli, "tec[%d] unregistered\r\n",i);
 	}
-	cli_printf(cli, "\r\n");
 }
 
 //manuallly set the Tec voltage fỏmat: xxx tec_id tec_dir tec_volt
@@ -479,9 +478,10 @@ static void CMD_TEC_Man_Set_Volt(EmbeddedCli *cli, char *args, void *context) {
 	ret = temperature_control_tec_manual_set_output( ptemperature_control_task,tec_id, tec_dir, tec_volt_mV);
 	if (ret)
 	{
-		cli_printf(cli, "set output failed\r\n");
+		cli_printf(cli, "ERROR\r\n");
+		return;
 	}
-	else cli_printf(cli, "set tec[%d] with %d \r\n",tec_id,tec_volt_mV);
+	cli_printf(cli, "OK\r\n");
 }
 
 //manuallly enable/disable tec output: cmd tec_id 0/1
@@ -510,11 +510,10 @@ static void CMD_TEC_Man_Set_Output(EmbeddedCli *cli, char *args, void *context)
 	uint32_t ret = temperature_control_tec_enable_output(ptemperature_control_task,tec_id,tec_out_ena);
 	if (ret)
 	{
-		cli_printf(cli, "failed to disable tec[%d] output\r\n",tec_id);
+		cli_printf(cli, "ERROR\r\n");
 		return;
 	}
-	if (tec_out_ena) cli_printf(cli, "enabled tec[%d] output\r\n",tec_id);
-	else cli_printf(cli, "disabled tec[%d] output\r\n",tec_id);
+	cli_printf(cli, "OK\r\n");
 }
 
 
@@ -546,17 +545,19 @@ static void CMD_TEC_OVR_Set_Output(EmbeddedCli *cli, char *args, void *context)
 
 	temperature_profile_tec_ovr_register(ptemperature_control_task, tec_id);
 	temperature_profile_tec_ovr_voltage_set(ptemperature_control_task, mvolt);
-	cli_printf(cli, "tec[%d] registered in ovr mode with %dmV\r\n", tec_id, mvolt);
+	cli_printf(cli, "OK\r\n");
 }
 
 
 static void CMD_TEC_OVR_Start(EmbeddedCli *cli, char *args, void *context)
 {
 	temperature_profile_tec_ovr_enable(ptemperature_control_task);
+	cli_printf(cli, "OK\r\n");
 }
 static void CMD_TEC_OVR_Stop(EmbeddedCli *cli, char *args, void *context)
 {
 	temperature_profile_tec_ovr_disable(ptemperature_control_task);
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_TEC_OVR_Get(EmbeddedCli *cli, char *args, void *context)
@@ -587,7 +588,7 @@ static void CMD_HTR_Set_Profile_Duty(EmbeddedCli *cli, char *args, void *context
 	}
 
 	temperature_control_profile_heater_duty_set(ptemperature_control_task,duty);
-	cli_printf(cli, "OK \r\n");
+	cli_printf(cli, "OK\r\n");
 	//TODO: post profile change signal
 }
 
@@ -616,6 +617,7 @@ static void CMD_Heater_Profile_Register(EmbeddedCli *cli, char *args, void *cont
 		if (heater_ena[i] == 0) temperature_control_profile_heater_unregister(ptemperature_control_task,i);
 		else temperature_control_profile_heater_register(ptemperature_control_task, i);
 	}
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_Heater_Profile_Get(EmbeddedCli *cli, char *args, void *context)
@@ -626,7 +628,6 @@ static void CMD_Heater_Profile_Get(EmbeddedCli *cli, char *args, void *context)
 		if (heater_profile & (1<<i)) cli_printf(cli, "heater[%d] registered\r\n");
 		else cli_printf(cli, "heater[%d] unregistered\r\n");
 	}
-	cli_printf(cli, "\r\n");
 }
 
 
@@ -642,7 +643,7 @@ static void CMD_Ref_Set_Temp(EmbeddedCli *cli, char *args, void *context) {
 	const char *arg1 = embeddedCliGetToken(args, 1);
 	int16_t setpoint = atoi(arg1);
 	temperature_control_profile_setpoint_set(ptemperature_control_task,setpoint);
-	cli_printf(cli, "temperature setpoint: %.2f *C\r\n", (float)setpoint/10);
+	cli_printf(cli, "OK\r\n");
 
 }
 
@@ -669,7 +670,7 @@ static void CMD_Ref_Set_NTC(EmbeddedCli *cli, char *args, void *context) {
 		return;
 	}
 	temperature_control_profile_ntc_register(ptemperature_control_task,NTC_Ref);
-
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_Ref_Get_NTC(EmbeddedCli *cli, char *args, void *context) {
@@ -681,12 +682,12 @@ static void CMD_Ref_Get_NTC(EmbeddedCli *cli, char *args, void *context) {
 static void CMD_Start_Auto_Mode(EmbeddedCli *cli, char *args, void *context)
 {
 	temperature_control_auto_mode_set(ptemperature_control_task);
-	cli_printf(cli, "Auto mode started\r\n");
+	cli_printf(cli, "OK\r\n");
 }
 static void CMD_Stop_Auto_Mode(EmbeddedCli *cli, char *args, void *context)
 {
 	temperature_control_man_mode_set(ptemperature_control_task);
-	cli_printf(cli, "Auto mode stopped\r\n");
+	cli_printf(cli, "OK\r\n");
 }
 
 /*
@@ -711,7 +712,7 @@ static void CMD_Set_Laser_Int_Current(EmbeddedCli *cli, char *args, void *contex
 			return;
 		}
 	experiment_task_laser_set_current(pexperiment_task, 0, percent);
-	cli_printf(cli, "set internal laser to %d percent\r\n",percent);
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_Set_Laser_Ext_Current(EmbeddedCli *cli, char *args, void *context)
@@ -733,7 +734,7 @@ static void CMD_Set_Laser_Ext_Current(EmbeddedCli *cli, char *args, void *contex
 			return;
 		}
 	experiment_task_laser_set_current(pexperiment_task, 1, percent);
-	cli_printf(cli, "set internal laser to %d percent\r\n",percent);
+	cli_printf(cli, "OK\r\n");
 }
 
 
@@ -785,7 +786,7 @@ static void CMD_Int_Laser_Switch_On(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 	experiment_task_int_laser_switchon(pexperiment_task,  laser_idx);
-	cli_printf(cli, "switched int laser %d on\r\n",laser_idx);
+	cli_printf(cli, "OK\r\n");
 }
 
 
@@ -808,16 +809,17 @@ static void CMD_Ext_Laser_Switch_On(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 	experiment_task_ext_laser_switchon(pexperiment_task,  laser_idx);
-	cli_printf(cli, "switched ext laser %d on\r\n",laser_idx);
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_Int_Laser_Switch_Off(EmbeddedCli *cli, char *args, void *context)
 {
 	experiment_task_int_laser_switchoff(pexperiment_task);
+	cli_printf(cli, "OK\r\n");
 }
 static void CMD_Ext_Laser_Switch_Off(EmbeddedCli *cli, char *args, void *context){
 	experiment_task_ext_laser_switchoff(pexperiment_task);
-
+	cli_printf(cli, "OK\r\n");
 }
 
 /*
@@ -836,45 +838,55 @@ static void cmd_exp_set_profile(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 	uint32_t sampling_rate = atoi(embeddedCliGetToken(args, 1));
-	if ((sampling_rate == 0) || (sampling_rate > 1000))
+	if ((sampling_rate < 1000) || (sampling_rate > 800000))
 	{
-		cli_printf(cli, "sampling rate out of range (1K-1M)\r\n");
+		cli_printf(cli, "sampling rate out of range (1K-800K)\r\n");
 		return;
 	}
+	sampling_rate /= 1000;
+
 	uint32_t pos = atoi(embeddedCliGetToken(args, 2));
-		if ((pos == 0) || (pos > 36))
-		{
-			cli_printf(cli, "pos rate out of range (1-36)\r\n");
-			return;
-		}
+	if ((pos == 0) || (pos > 36))
+	{
+		cli_printf(cli, "pos rate out of range (1-36)\r\n");
+		return;
+	}
+
 	uint32_t percent = atoi(embeddedCliGetToken(args, 3));
-			if (percent > 100)
-			{
-				cli_printf(cli, "percent out of range (0-100)\r\n");
-				return;
-			}
+	if (percent > 100)
+	{
+		cli_printf(cli, "percent out of range (0-100)\r\n");
+		return;
+	}
+
 	uint32_t pre_time = atoi(embeddedCliGetToken(args, 4));
-			if (pre_time == 0)
-			{
-				cli_printf(cli, "pre_time should be larger than 0\r\n");
-				return;
-			}
+	if (pre_time == 0)
+	{
+		cli_printf(cli, "pre_time should be larger than 0\r\n");
+		return;
+	}
+	pre_time *= 1000;
+
 	uint32_t sample_time = atoi(embeddedCliGetToken(args, 5));
-			if (sample_time == 0)
-			{
-				cli_printf(cli, "sample time should be larger than 0\r\n");
-				return;
-			}
+	if (sample_time == 0)
+	{
+		cli_printf(cli, "sample time should be larger than 0\r\n");
+		return;
+	}
+	sample_time *= 1000;
+
 	uint32_t post_time = atoi(embeddedCliGetToken(args, 6));
-			if (post_time == 0)
-			{
-				cli_printf(cli, "post_time should be larger than 0\r\n");
-				return;
-			}
+	if (post_time == 0)
+	{
+		cli_printf(cli, "post_time should be larger than 0\r\n");
+		return;
+	}
+	post_time *= 1000;
+
 	uint32_t num_sample = ((pre_time + sample_time + post_time) * sampling_rate )/1000000;
 	if (num_sample > 2048)	//larrger than 4MB
 	{
-		cli_printf(cli, "total sample must be less than 2048 K\r\n");
+		cli_printf(cli, "total sample must be less than 2048K \r\n");
 		return;
 	}
 
@@ -887,22 +899,35 @@ static void cmd_exp_set_profile(EmbeddedCli *cli, char *args, void *context)
 	profile.post_time = post_time;				// us
 	profile.num_sample = num_sample;			// kSample
 	profile.period = 1000000 / sampling_rate;	// ns
-	experiment_task_set_profile(pexperiment_task,&profile);
-	cli_printf(cli, "set profile sampling_rate:%d, pos: %d, percent:%d, pre_time:%d, sample_time:%d, post_time:%d, num_sample %d, sampling period %d \r\n",sampling_rate, pos, percent, pre_time, sample_time,post_time, num_sample,profile.period);
+	if(!experiment_task_set_profile(pexperiment_task,&profile)) cli_printf(cli, "OK\r\n");
+	else cli_printf(cli, "ERROR\r\n");
 }
 
 static void cmd_exp_get_profile(EmbeddedCli *cli, char *args, void *context)
 {
 	experiment_profile_t profile;
 	experiment_task_get_profile(pexperiment_task, &profile);
-	cli_printf(cli, "sampling_rate:%d, pos: %d, percent:%d, pre_time:%d, sample_time:%d,post_time: %d, num_sample: %d, sampling_period %d \r\n",profile.sampling_rate, profile.pos, profile.laser_percent, profile.pre_time, profile.experiment_time ,profile.post_time, profile.num_sample, profile.period);
+	cli_printf(cli, "sampling_rate: %d Hz\r\n"
+					"position     : %d\r\n"
+					"percent      : %d %\r\n"
+					"pre_time     : %d ms\r\n"
+					"sample_time  : %d ms\r\n"
+					"post_time    : %d ms\r\n"
+					"num_sample   : %d kSample\r\n",
+					profile.sampling_rate*1000,
+					profile.pos,
+					profile.laser_percent,
+					profile.pre_time/1000,
+					profile.experiment_time/1000,
+					profile.post_time/1000,
+					profile.num_sample);
 
 }
 static void cmd_exp_start_measuring(EmbeddedCli *cli, char *args, void *context)
 {
 	if (experiment_start_measuring(pexperiment_task))
 		cli_printf(cli, "Wrong profile, please check \r\n");
-	else cli_printf(cli,"Starting Measurement\r\n");
+	else cli_printf(cli,"Starting Measurement...\r\n");
 }
 
 static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)

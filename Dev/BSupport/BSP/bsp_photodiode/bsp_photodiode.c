@@ -295,6 +295,7 @@ void DMA1_Stream1_IRQHandler(void)
 			TIM1->CR1 &= ~TIM_CR1_CEN;
 			TIM1->DIER &= ~TIM_DIER_UIE;
 			TIM1->SR = ~TIM_SR_UIF;
+			NVIC_ClearPendingIRQ(TIM1_UP_TIM10_IRQn);
 			LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_1);
 			LL_DMA_DisableIT_TC(DMA1, LL_DMA_STREAM_1);
 			LL_DMA_DisableIT_HT(DMA1, LL_DMA_STREAM_1);
