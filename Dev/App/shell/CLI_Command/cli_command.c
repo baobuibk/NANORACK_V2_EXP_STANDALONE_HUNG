@@ -940,6 +940,14 @@ static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 
+	if(	(pexperiment_task->sub_state != NO_SUBSTATE)&&
+		(pexperiment_task->sub_state != S_AQUI_ERROR)&&
+		(pexperiment_task->sub_state != S_AQUI_TIMEOUT))
+	{
+		cli_printf(cli, "EXP is in sampling process!\r\n");
+		return;
+	}
+
 	// 32Mb = 4096kB = 2048kW = 2097152W -> addr < (2097152 - 1)W
 	uint32_t start_address = atoi(embeddedCliGetToken(args, 1));		// calculated by halfword
 	if (start_address > 2097151)
