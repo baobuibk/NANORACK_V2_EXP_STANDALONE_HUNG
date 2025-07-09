@@ -53,15 +53,19 @@ static void shell_cli_write_char(EmbeddedCli *embeddedCli, char c) ;
 static void shell_task_init(shell_task_t * const me, shell_evt_t const * const e) ;
 static void shell_task_dispatch(shell_task_t * const me, shell_evt_t const * const e);
 
-static state_t shell_state_process_handler(shell_task_t * const me, shell_evt_t const * const e) ;
-static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, shell_evt_t const * const e) ;
+static state_t shell_state_process_handler(shell_task_t * const me, shell_evt_t const * const e);
+static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, shell_evt_t const * const e);
+static state_t shell_state_send_long_buffer_binary_handler(shell_task_t * const me, shell_evt_t const * const e);
 static void shell_htoa(shell_task_t * const me);
+static void shell_binary(shell_task_t * const me);
+static void crc16_CCITT_update(uint16_t *crc, uint16_t data);
 
 static shell_evt_t const entry_evt = {.super = {.sig = SIG_ENTRY} };
 static shell_evt_t const exit_evt = {.super = {.sig = SIG_EXIT} };
 static shell_evt_t uart_empty_evt = {.super = {.sig = EVT_SHELL_UART_EMPTY},
 											};
 static shell_evt_t uart_send_buffer_evt = {.super = {.sig = EVT_SHELL_SEND_BUFFER},};
+static shell_evt_t uart_send_buffer_bin_evt = {.super = {.sig = EVT_SHELL_SEND_BUFFER_BINARY},};
 
 static experiment_evt_t const done_send_chunk = {.super = {.sig = EVT_EXPERIMENT_DONE_SEND_CHUNK}};
 extern experiment_task_t experiment_task_inst;
@@ -177,6 +181,11 @@ static state_t shell_state_process_handler(shell_task_t * const me, shell_evt_t 
         	me->state = shell_state_send_long_buffer_handler;
             return TRAN_STATUS;
         }
+        case EVT_SHELL_SEND_BUFFER_BINARY: {
+			// Handle initialization event
+			me->state = shell_state_send_long_buffer_binary_handler;
+			return TRAN_STATUS;
+		}
 
         default: {
             // Handle other events if necessary
@@ -268,6 +277,115 @@ static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, she
     }
 }
 
+
+static state_t shell_state_send_long_buffer_binary_handler(shell_task_t * const me, shell_evt_t const * const e) {
+
+	uint32_t ret = 0;
+    switch (e->super.sig) {
+        case SIG_ENTRY:
+        	// Send first 3 byte header
+        	uint32_t header = (0x000FFFFF & me->remain_word) | 0xFFF00000;
+        	uint8_t bytes_temp[3];
+			bytes_temp[0] = (uint8_t)(header >> 16);
+			bytes_temp[1] = (uint8_t)(header >> 8);
+			bytes_temp[2] = (uint8_t)header;
+			for(uint8_t i = 0; i < 3; i++)
+			{
+				uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
+			}
+
+			// Sencode, send first chunk of data
+        	while (me->remain_word > 0)
+        	{
+        		shell_binary(me);
+        		while (me->bin_buffer_index < 2)
+        		{
+        			ret = uart_stdio_write_char(me->shell_uart_stdio, me->bin_buffer[me->bin_buffer_index]);
+        			if (ret)  //buffer full, need to wait
+        			{
+        				return HANDLED_STATUS;
+        			}
+        			me->bin_buffer_index++;
+        		}
+        	}
+
+			//Finally, send 2 byte crc
+			bytes_temp[0] = (uint8_t)(me->crc >> 8);
+			bytes_temp[1] = (uint8_t)me->crc;
+			for(uint8_t i = 0; i < 2; i++)
+			{
+				uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
+			}
+
+        	me->state = shell_state_process_handler;
+        	SST_TimeEvt_arm(&me->shell_task_timeout_timer, SHELL_POLL_INTERVAL, SHELL_POLL_INTERVAL);
+            return TRAN_STATUS;
+
+        case EVT_SHELL_UART_EMPTY:
+        	while (me->bin_buffer_index < 2)
+			{
+				ret = uart_stdio_write_char(me->shell_uart_stdio, me->bin_buffer[me->bin_buffer_index]);
+				if (ret)  //buffer full, need to wait
+				{
+					return HANDLED_STATUS;
+				}
+				me->bin_buffer_index++;
+			}
+
+
+        	while (me->remain_word > 0)
+			{
+				shell_binary(me);
+				while (me->bin_buffer_index < 2)
+				{
+					ret = uart_stdio_write_char(me->shell_uart_stdio, me->bin_buffer[me->bin_buffer_index]);
+					if (ret)  //buffer full, need to wait
+					{
+						return HANDLED_STATUS;
+					}
+					me->bin_buffer_index++;
+				}
+			}
+
+        	//Finally, send 2 byte crc
+			bytes_temp[0] = (uint8_t)(me->crc >> 8);
+			bytes_temp[1] = (uint8_t)me->crc;
+			for(uint8_t i = 0; i < 2; i++)
+			{
+				uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
+			}
+
+        	me->state = shell_state_process_handler;
+            return TRAN_STATUS;
+
+        default:
+            // Handle other events if necessary
+            return IGNORED_STATUS;
+    }
+}
+
+static void crc16_CCITT_update(uint16_t *crc, uint16_t data)
+{
+    uint8_t bytes[2] = {data >> 8, data & 0xFF};
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        *crc ^= bytes[i] << 8;
+        for (uint8_t j = 0; j < 8; j++)
+            *crc = (*crc & 0x8000) ? (*crc << 1) ^ 0x1021 : *crc << 1;
+    }
+}
+
+static void shell_binary(shell_task_t * const me)
+{
+	uint16_t data = *me->buffer_to_send++;
+	me->remain_word --;
+	crc16_CCITT_update(&me->crc, data);
+	me->bin_buffer[0] = data >> 8;
+	me->bin_buffer[1] = data & 0xFF;
+	me->bin_buffer_index = 0;
+	if (!me->remain_word)	SST_Task_post((SST_Task *)&experiment_task_inst.super, (SST_Evt *)&done_send_chunk);
+}
+
 static void shell_htoa(shell_task_t * const me)
 {
     const char hex_chars[] = "0123456789ABCDEF";
@@ -282,10 +400,13 @@ static void shell_htoa(shell_task_t * const me)
     if (!me->remain_word)	SST_Task_post((SST_Task *)&experiment_task_inst.super, (SST_Evt *)&done_send_chunk);
 }
 
-void shell_send_buffer(shell_task_t * const me, uint16_t *buffer, uint32_t size)
+void shell_send_buffer(shell_task_t * const me, uint16_t *buffer, uint32_t size, uint8_t mode)
 {
 	me->buffer_to_send = buffer;
 	me->remain_word = size;
 
-	SST_Task_post(&me->super, (SST_Evt *)&uart_send_buffer_evt);
+	if(mode) SST_Task_post(&me->super, (SST_Evt *)&uart_send_buffer_bin_evt);
+	else SST_Task_post(&me->super, (SST_Evt *)&uart_send_buffer_evt);
 }
+
+

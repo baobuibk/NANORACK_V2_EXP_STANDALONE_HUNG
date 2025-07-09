@@ -30,29 +30,12 @@ static experiment_task_t *pexperiment_task = &experiment_task_inst;
 /*************************************************
  *                Command Define                 *
  *************************************************/
-#define ROUND(x) ((x) >= 0 ? (int)(x + 0.5) : (int)(x - 0.5))
-
-static int32_t Map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
-{
-	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-static void crc16_CCITT_update(uint16_t *crc, uint16_t data)
-{
-    uint8_t bytes[2] = {data >> 8, data & 0xFF};
-    for (uint8_t i = 0; i < 2; i++)
-    {
-        *crc ^= bytes[i] << 8;
-        for (uint8_t j = 0; j < 8; j++)
-            *crc = (*crc & 0x8000) ? (*crc << 1) ^ 0x1021 : *crc << 1;
-    }
-}
-
 
 
 /*************************************************
  *                Command Define                 *
  *************************************************/
+
 static void CMD_Clear_CLI(EmbeddedCli *cli, char *args, void *context);
 static void CMD_Reset(EmbeddedCli *cli, char *args, void *context);
 
@@ -143,7 +126,6 @@ static const CliCommandBinding cliStaticBindings_internal[] = {
     { "Ultis", "help",         "Print list of all available CLI commands [Firmware: 1]", false,  NULL, CMD_Help },
     { "Ultis", "cls",          "Clear the console output screen",                        false,  NULL, CMD_Clear_CLI },
     { "Ultis", "reset",        "Perform MCU software reset",                             false,  NULL, CMD_Reset },
-
     // NTC
     { "NTC",   "ntc_get_temp", "Read temperature value from NTC sensor [ch: 0-7, a=all]", true,   NULL, CMD_NTC_Get_Temp },
 
@@ -237,7 +219,6 @@ static const CliCommandBinding cliStaticBindings_internal[] = {
 /*************************************************
  *             Command List Function             *
  *************************************************/
-
 
 
 static void CMD_Clear_CLI(EmbeddedCli *cli, char *args, void *context) {
@@ -927,14 +908,13 @@ static void cmd_exp_start_measuring(EmbeddedCli *cli, char *args, void *context)
 {
 	if (experiment_start_measuring(pexperiment_task))
 		cli_printf(cli, "Wrong profile, please check \r\n");
-	else cli_printf(cli,"Starting Measurement...\r\n");
 }
 
 static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)
 {
 	uint32_t tokenCount = embeddedCliGetTokenCount(args);
 
-	if (tokenCount != 2)
+	if (tokenCount != 3)
 	{
 		cli_printf(cli, "format: exp_ram_read [address] [num_sample]\r\n");
 		return;
@@ -964,9 +944,15 @@ static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 
-	cli_printf(cli, "\r\n");
-	experiment_task_get_ram_data(pexperiment_task, start_address, num_data);
-    cli_printf(cli, "\r\n");
+	uint8_t mode = atoi(embeddedCliGetToken(args, 3));		// calculated by halfword
+	if (mode > 1)
+	{
+		cli_printf(cli, "mode format is 0: print by ascii, 1: print by binary\r\n");
+		return;
+	}
+
+	experiment_task_get_ram_data(pexperiment_task, start_address, num_data, mode);
+
 }
 
 

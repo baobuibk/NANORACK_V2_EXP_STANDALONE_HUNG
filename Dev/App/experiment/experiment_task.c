@@ -19,7 +19,7 @@
 DBC_MODULE_NAME("experiment_task")
 
 #define EXPERIMENT_TASK_NUM_EVENTS  	2
-#define EXPERIMENT_TASK_AQUI_TIMEOUT	10000
+#define EXPERIMENT_TASK_AQUI_TIMEOUT	20000
 
 experiment_task_t experiment_task_inst;
 extern shell_task_t shell_task_inst ;
@@ -45,7 +45,7 @@ static state_t experiment_task_state_data_send_handler(experiment_task_t * const
 
 static void experiment_task_init(experiment_task_t * const me,experiment_evt_t const * const e)
 {
-	DBG(DBG_LEVEL_INFO,"experiment_task init\r\n");
+	//DBG(DBG_LEVEL_INFO,"experiment_task init\r\n");
 	bsp_laser_init();
 	bsp_spi_ram_init();
 	bsp_photodiode_init();
@@ -125,14 +125,15 @@ static state_t experiment_task_state_data_aqui_handler(experiment_task_t * const
 	{
 		case SIG_ENTRY:
 		{
-			DBG(DBG_LEVEL_INFO,"entry experiment_task_state_data_aqui_handler\r\n");
+			DBG(DBG_LEVEL_INFO,"Start Sampling...\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry experiment_task_state_data_aqui_handler\r\n");
 			SST_TimeEvt_arm(&me->timeout_timer, EXPERIMENT_TASK_AQUI_TIMEOUT, 0);
 	//      Switch the photodiode on
 			experiment_task_photodiode_switchon(me, me->profile.pos);
-			DBG(DBG_LEVEL_INFO,"switch on photo %d\r\n", me->profile.pos);
+			//DBG(DBG_LEVEL_INFO,"switch on photo %d\r\n", me->profile.pos);
 	//		Switch the SPI to ADC supported mode
 			experiment_task_photo_ADC_prepare_SPI(me);
-			DBG(DBG_LEVEL_INFO,"switch on photo %d and change SPI mode to SPI ADC Mode\r\n", me->profile.pos);
+			//DBG(DBG_LEVEL_INFO,"switch on photo %d and change SPI mode to SPI ADC Mode\r\n", me->profile.pos);
 	//		Prepare the timer for sampling
 			bsp_photodiode_time_t init_photo_time;
 			init_photo_time.pre_time = me->profile.pre_time ;
@@ -148,13 +149,13 @@ static state_t experiment_task_state_data_aqui_handler(experiment_task_t * const
 		}
 		case SIG_EXIT:
 		{
-			DBG(DBG_LEVEL_INFO,"exit experiment_task_state_data_aqui_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"exit experiment_task_state_data_aqui_handler\r\n");
 			SST_TimeEvt_disarm(&me->timeout_timer);
 			return HANDLED_STATUS;
 		}
 		case EVT_EXPERIMENT_FINISH_PRE_SAMPLING:
 		{
-			DBG(DBG_LEVEL_INFO,"EXPERIMENT_FINISH_PRE_SAMPLING\r\n");
+			//DBG(DBG_LEVEL_INFO,"EXPERIMENT_FINISH_PRE_SAMPLING\r\n");
 			if (me->sub_state == S_PRE_SAMPLING)
 			{
 				me->sub_state = S_DATA_SAMPLING;
@@ -165,7 +166,7 @@ static state_t experiment_task_state_data_aqui_handler(experiment_task_t * const
 		}
 		case EVT_EXPERIMENT_FINISH_SAMPLING:
 		{
-			DBG(DBG_LEVEL_INFO,"EXPERIMENT_FINISH_SAMPLING\r\n");
+			//DBG(DBG_LEVEL_INFO,"EXPERIMENT_FINISH_SAMPLING\r\n");
 			if (me->sub_state == S_DATA_SAMPLING)
 			{
 				me->sub_state = S_POST_SAMPLING;
@@ -180,7 +181,7 @@ static state_t experiment_task_state_data_aqui_handler(experiment_task_t * const
 				me->sub_state = NO_SUBSTATE;
 			}
 			else me->sub_state = S_AQUI_ERROR;
-			DBG(DBG_LEVEL_INFO,"finished sampling\r\n");
+			DBG(DBG_LEVEL_INFO,"Sampling Done!\r\n");
 			me->state = experiment_task_state_manual_handler;
 			return TRAN_STATUS;
 		}
@@ -200,7 +201,7 @@ static state_t experiment_task_state_data_send_handler(experiment_task_t * const
 	{
 		case SIG_ENTRY:
 		{
-			DBG(DBG_LEVEL_INFO,"entry experiment_task_state_data_send_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry experiment_task_state_data_send_handler\r\n");
 			SST_TimeEvt_disarm(&me->timeout_timer); //disable the timeout
 		    remain_data_profile.num_data = me->data_profile.num_data;
 		    remain_data_profile.start_address = me->data_profile.start_address;
@@ -211,7 +212,7 @@ static state_t experiment_task_state_data_send_handler(experiment_task_t * const
 
 		case EVT_EXPERIMENT_DONE_READ_RAM:
 		{
-			shell_send_buffer(pshell_task_instt, ram_buffer, batch_size);
+			shell_send_buffer(pshell_task_instt, ram_buffer, batch_size, me->data_profile.mode);
 			return HANDLED_STATUS;
 		}
 
@@ -238,11 +239,13 @@ static state_t experiment_task_state_data_send_handler(experiment_task_t * const
 }
 
 
-uint32_t experiment_task_get_ram_data(experiment_task_t * const me, uint32_t start_addr, uint32_t num_data)
+uint32_t experiment_task_get_ram_data(experiment_task_t * const me, uint32_t start_addr, uint32_t num_data, uint8_t mode)	// mode0: send ASCII, mode1: send binary
 {
 
 	me->data_profile.start_address = start_addr;
 	me->data_profile.num_data = num_data;
+	me->data_profile.mode = mode;
+	pshell_task_instt->crc = 0xffff;
 	SST_Task_post(&me->super, (SST_Evt *)&start_sending_evt);
 	return ERROR_OK;
 }

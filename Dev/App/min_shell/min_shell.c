@@ -6,7 +6,7 @@
  */
 #include "min_shell.h"
 #include "min_shell_command.h"
-
+#include "min.h"
 #include "stddef.h"
 #include "app_signals.h"
 #include "configs.h"
@@ -97,10 +97,15 @@ void MIN_App_Poll(MIN_Context_t *ctx, const uint8_t *rx_data, uint32_t rx_len) {
     }
     ctx->last_poll_time = now;
 }
+
+
 void MIN_RegisterTimeoutCallback(MIN_Context_t *ctx, void (*callback)(MIN_Context_t *ctx)) {
     ctx->timeout_callback = callback;
 }
 
+void MIN_Timeout_Handler(MIN_Context_t *ctx) {
+	min_debug_print("MIN-Timeout!\r\n");
+}
 // Khởi tạo bộ đệm vòng (item_size = 1 byte)
 void min_shell_stdio_init(void)
 {
@@ -116,6 +121,7 @@ static void min_shell_task_init(min_shell_task_t * const me, min_shell_evt_t con
     // Initialize the MIN shell task
     me->min_context = &min_ctx; // Assign the context to the task
     MIN_Context_Init(me->min_context,0);
+    MIN_RegisterTimeoutCallback(&min_ctx, MIN_Timeout_Handler);
     SST_TimeEvt_arm(&me->min_poll_timer, MIN_SHELL_POLL_INTERVAL_MS, MIN_SHELL_POLL_INTERVAL_MS); // Re-arm the timer
 }
 
@@ -132,7 +138,7 @@ static void min_shell_task_ctor(min_shell_task_t * const me, min_shell_task_init
 }
 void min_shell_task_ctor_singleton() {
     // Initialize the MIN shell task
-    min_init(&min_ctx,0);
+    //min_init(&min_ctx,0);
     min_shell_stdio_init(); // Initialize the UART for MIN communication
     circular_buffer_init(&min_shell_task_event_queue,(uint8_t *)min_shell_task_event_buffer,sizeof(min_shell_task_event_buffer),MIN_SHELL_TASK_NUM_EVENTS,sizeof(min_shell_evt_t));
 
@@ -205,6 +211,14 @@ uint32_t min_time_ms(void)
 }
 
 //callback function to handle incoming MIN frames
+
+static MIN_ResponseHandler response_handler = NULL;
+
+void MIN_RegisterResponseHandler(MIN_ResponseHandler handler)
+{
+    response_handler = handler;
+}
+
 void min_application_handler(uint8_t min_id, uint8_t const *min_payload, uint8_t len_payload, uint8_t port) {
 	 MIN_Context_t *ctx = registered_contexts[port];
     const MIN_Command_t *command_table = MIN_GetCommandTable();
@@ -251,16 +265,4 @@ void min_shell_rx_callback(void) // Callback xử lý ngắt nhận
         SST_Task_post(&min_shell_inst.super, (SST_Evt *)&has_data_evt); // Post event to shell task
     }
 }
-//void USART2_IRQHandler(void)
-//{
-//  /* USER CODE BEGIN USART2_IRQn 0 */
-////	CLI_UART_stdio_rx_callback();
-////	uart_stdio_tx_callback(&uart_stdio);
-//	min_shell_rx_callback();
-//	uart_stdio_tx_callback(&min_shell_uart);
-//
-//  /* USER CODE END USART2_IRQn 0 */
-//  /* USER CODE BEGIN USART2_IRQn 1 */
-//
-//  /* USER CODE END USART2_IRQn 1 */
-//}
+

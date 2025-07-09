@@ -454,7 +454,8 @@ static void rx_byte(struct min_context *self, uint8_t byte)
     uint32_t crc;
     min_debug_print("%x\r\n",byte);
 
-    if (self->rx_header_bytes_seen == 2) {
+    if (self->rx_header_bytes_seen == 2)
+    {
         self->rx_header_bytes_seen = 0;
         if (byte == HEADER_BYTE) {
             self->rx_frame_state = RECEIVING_ID_CONTROL;
@@ -476,7 +477,8 @@ static void rx_byte(struct min_context *self, uint8_t byte)
         self->rx_header_bytes_seen = 0;
     }
 
-    switch (self->rx_frame_state) {
+    switch (self->rx_frame_state)
+    {
     case SEARCHING_FOR_SOF:
         break;
     case RECEIVING_ID_CONTROL:

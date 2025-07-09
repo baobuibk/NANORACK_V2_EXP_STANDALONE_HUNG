@@ -41,6 +41,7 @@ struct data_profile_t{
 	uint32_t start_address;
 	uint32_t num_data;
 	uint8_t	destination; //0: send to UART console, 1: to SPI
+	uint8_t mode; //0 ascii, 1: binary
 };
 struct experiment_task_t{
 	SST_Task super;
@@ -76,7 +77,7 @@ uint32_t experiment_task_ext_laser_switchoff(experiment_task_t * const me);
 uint32_t experiment_task_int_laser_switchoff(experiment_task_t * const me);
 
 uint32_t experiment_task_set_profile(experiment_task_t * me,experiment_profile_t * profile);
-uint32_t experiment_task_get_ram_data(experiment_task_t * const me, uint32_t start_addr, uint32_t num_data);
+uint32_t experiment_task_get_ram_data(experiment_task_t * const me, uint32_t start_addr, uint32_t num_data, uint8_t mode);
 void experiment_task_get_profile(experiment_task_t * me, experiment_profile_t * profile);
 uint32_t experiment_start_measuring(experiment_task_t * const me);
 uint32_t experiment_task_photo_ADC_prepare_SPI(experiment_task_t * const me);

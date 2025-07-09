@@ -17,7 +17,7 @@
 #endif
 
 /* En/Dis Debug/AutoComplete CMD */
-//#define DEBUG_ENABLE
+#define DEBUG_ENABLE
 //#define CLI_AUTOCOMPLETE_ENABLE
 
 

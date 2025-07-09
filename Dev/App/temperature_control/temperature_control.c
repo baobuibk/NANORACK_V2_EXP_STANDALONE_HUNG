@@ -46,7 +46,7 @@ static state_t temperature_control_state_wait_cool_handler(temperature_control_t
 static void temperature_control_task_init(temperature_control_task_t * const me,temperature_control_evt_t const * const e)
 {
 
-	DBG(DBG_LEVEL_INFO,"init\r\n");
+	//DBG(DBG_LEVEL_INFO,"temperature control init\r\n");
 	bsp_temperature_power_on();
 	me->tec_heater_power_status = 1;
 	temperature_control_tec_init_all(me); //initialized all tecs
@@ -105,7 +105,7 @@ static state_t temperature_control_state_manual_handler(temperature_control_task
 	{
 		case SIG_ENTRY:
 		{
-			DBG(DBG_LEVEL_INFO,"entry temperature_control_state_manual_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry temperature_control_state_manual_handler\r\n");
 			SST_TimeEvt_disarm(&me->temperature_control_task_timeout_timer); //disable the periodic timer
 			temperature_control_tec_output_disable_all(me); //disable all tecs
 			temperature_control_heater_disable_all(me); //disable heater output
@@ -146,7 +146,7 @@ static state_t temperature_control_state_cooling_handler(temperature_control_tas
 {
 	switch (e->super.sig) {
 		case SIG_ENTRY:{
-			DBG(DBG_LEVEL_INFO,"entry temperature_control_state_cooling_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry temperature_control_state_cooling_handler\r\n");
 			me->counter = 0;
 			temperature_control_auto_tec_set_output(me, TEC_COOL); //set all tecs on the profile to the desired voltage
 			temperature_control_auto_tec_enable_output(me); // Turn on TEC output
@@ -183,7 +183,7 @@ static state_t temperature_control_state_off_wait_heat_handler(temperature_contr
 {	
 	switch (e->super.sig) {
 		case SIG_ENTRY: {
-			DBG(DBG_LEVEL_INFO,"entry temperature_control_state_off_wait_heat_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry temperature_control_state_off_wait_heat_handler\r\n");
    			me->counter = 0; // Reset counter for waiting
    			temperature_control_tec_output_disable_all(me); // Disable TEC output
    			temperature_control_heater_disable_all(me); //disable all heater
@@ -221,7 +221,7 @@ static state_t temperature_control_state_heating_heater_handler(temperature_cont
 {	
 	switch (e->super.sig) {
 		case SIG_ENTRY: {
-			DBG(DBG_LEVEL_INFO,"entry temperature_control_state_heating_heater_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry temperature_control_state_heating_heater_handler\r\n");
    			me->counter = 0; // Reset counter for heating
    			temperature_control_enable_heater(me); //turn on heater in profile
    			return HANDLED_STATUS;
@@ -255,7 +255,7 @@ static state_t temperature_control_state_wait_cool_handler(temperature_control_t
 {
 	switch (e->super.sig) {
 		case SIG_ENTRY: {
-			DBG(DBG_LEVEL_INFO,"entry temperature_control_state_wait_cool_handler\r\n");
+			//DBG(DBG_LEVEL_INFO,"entry temperature_control_state_wait_cool_handler\r\n");
 
 			temperature_control_tec_output_disable_all(me); //turn off all heater
 			temperature_control_heater_disable_all(me);

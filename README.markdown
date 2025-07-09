@@ -281,9 +281,13 @@ This document provides a comprehensive guide to the Command Line Interface (CLI)
 
 ### exp_ram_read
 - **Description**: Reads measurement results stored in RAM at the specified address and number of samples.
-- **Format**: `exp_ram_read [address] [num_sample]`
-- **Example**: `exp_ram_read 0 1000`
-  - Output: Reads 1000 samples starting from address 0 in RAM.
+- **Format**: `exp_ram_read [address] [num_sample] [mode]`
+- **Example**: 
+  -`exp_ram_read 0 1000 0`
+    - Output: Reads 1000 samples starting from address 0 in RAM by ascii character.
+  -`exp_ram_read 0 1000 1`
+    - Output: Reads 1000 samples starting from address 0 in RAM by frame binary: `3byte header[b1111 + b(size)]` + `data_big_endian` + `crc16_ccit_false`
+  
 
 ## Notes
 - Ensure the correct command format is used as specified above to avoid errors.

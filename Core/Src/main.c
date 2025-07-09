@@ -26,7 +26,6 @@
 #include "ntc.h"
 #include "cli_command.h"
 #include "sensor_i2c.h"
-#include "min_process.h"
 #include "adg1414.h"
 #include "ads8327.h"
 #include "mcp4902.h"

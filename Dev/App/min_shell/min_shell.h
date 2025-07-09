@@ -125,7 +125,8 @@ struct min_shell_task_init_t {
     circular_buffer_t *min_shell_event_buffer; // Pointer to the circular buffer for events
 };
 
-
+typedef void (*MIN_ResponseHandler)(uint8_t min_id, const uint8_t *payload, uint8_t len);
+void MIN_RegisterResponseHandler(MIN_ResponseHandler handler);
 
 void min_shell_rx_callback(void);
 void min_shell_task_ctor_singleton(void);
