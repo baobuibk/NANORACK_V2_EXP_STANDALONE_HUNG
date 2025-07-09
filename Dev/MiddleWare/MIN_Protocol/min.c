@@ -236,7 +236,7 @@ static void send_ack(struct min_context *self)
 // We don't queue an RESET frame - we send it straight away (if there's space to do so)
 static void send_reset(struct min_context *self)
 {
-    min_debug_print("send RESET\n");
+    min_debug_print("send RESET\r\n");
     if (ON_WIRE_SIZE(0) <= min_tx_space(self->port)) {
         on_wire_bytes(self, MIN_RESET, 0, 0, 0, 0, 0);
     }
@@ -262,7 +262,7 @@ static void transport_fifo_reset(struct min_context *self)
 
 void min_transport_reset(struct min_context *self, bool inform_other_side)
 {
-    min_debug_print("Resetting %s other side\n", inform_other_side ? "and informing" : "without informing");
+    min_debug_print("Resetting %s other side\r\n", inform_other_side ? "and informing" : "without informing");
     if (inform_other_side) {
         // Tell the other end we have gone away
         send_reset(self);
@@ -292,7 +292,7 @@ bool min_queue_frame(struct min_context *self, uint8_t min_id, uint8_t const *pa
             payload_offset++;
             payload_offset &= TRANSPORT_FIFO_SIZE_FRAME_DATA_MASK;
         }
-        min_debug_print("Queued ID=%d, len=%d\n", min_id, payload_len);
+        min_debug_print("Queued ID=%d, len=%d\r\n", min_id, payload_len);
         return true;
     } else {
         self->transport_fifo.dropped_frames++;
@@ -375,7 +375,7 @@ static void valid_frame_received(struct min_context *self)
 #endif
             // Now pop off all the frames up to (but not including) rn
             // The ACK contains Rn; all frames before Rn are ACKed and can be removed from the window
-            min_debug_print("Received ACK seq=%d, num_acked=%d, num_nacked=%d\n", seq, num_acked, num_nacked);
+            min_debug_print("Received ACK seq=%d, num_acked=%d, num_nacked=%d\r\n", seq, num_acked, num_nacked);
             for (i = 0; i < num_acked; i++) {
                 transport_fifo_pop(self);
             }
@@ -388,7 +388,7 @@ static void valid_frame_received(struct min_context *self)
                 idx &= TRANSPORT_FIFO_SIZE_FRAMES_MASK;
             }
         } else {
-            min_debug_print("Received spurious ACK seq=%d\n", seq);
+            min_debug_print("Received spurious ACK seq=%d\r\n", seq);
             self->transport_fifo.spurious_acks++;
         }
         break;
@@ -424,18 +424,18 @@ static void valid_frame_received(struct min_context *self)
                 // Now ready to pass this up to the application handlers
 
                 // Pass frame up to application handler to deal with
-                min_debug_print("Incoming app transport frame seq=%d, id=%d, payload len=%d\n", seq, id_control & (uint8_t)0x3fU, payload_len);
+                min_debug_print("Incoming app transport frame seq=%d, id=%d, payload len=%d\r\n", seq, id_control & (uint8_t)0x3fU, payload_len);
                 min_application_handler(id_control & (uint8_t)0x3fU, payload, payload_len, self->port);
             } else {
                 // Discard this frame because we aren't looking for it: it's either a dupe because it was
                 // retransmitted when our ACK didn't get through in time, or else it's further on in the
                 // sequence and others got dropped.
                 self->transport_fifo.sequence_mismatch_drop++;
-                min_debug_print("Received mismatched frame seq=%d, looking for seq=%d\n", seq, self->transport_fifo.rn);
+                min_debug_print("Received mismatched frame seq=%d, looking for seq=%d\r\n", seq, self->transport_fifo.rn);
             }
         } else {
             // Not a transport frame
-            min_debug_print("Incoming app frame id=%d, payload len=%d\n", id_control & (uint8_t)0x3fU, payload_len);
+            min_debug_print("Incoming app frame id=%d, payload len=%d\r\n", id_control & (uint8_t)0x3fU, payload_len);
             min_application_handler(id_control & (uint8_t)0x3fU, payload, payload_len, self->port);
         }
         break;
@@ -452,7 +452,7 @@ static void rx_byte(struct min_context *self, uint8_t byte)
     //
     // Two in a row in over the frame means to expect a stuff byte.
     uint32_t crc;
-    min_debug_print("%x\n\r",byte);
+    min_debug_print("%x\r\n",byte);
 
     if (self->rx_header_bytes_seen == 2) {
         self->rx_header_bytes_seen = 0;
@@ -653,7 +653,7 @@ void min_init_context(struct min_context *self, uint8_t port)
     self->transport_fifo.n_frames_max = 0;
     transport_fifo_reset(self);
 #endif // TRANSPORT_PROTOCOL
-    min_debug_print("MIN init complete\n");
+    min_debug_print("MIN init complete\r\n");
 }
 
 // Sends an application MIN frame on the wire (do not put into the transport queue)

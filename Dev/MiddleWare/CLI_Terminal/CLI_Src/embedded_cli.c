@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "configs.h"
 #include "embedded_cli.h"
 
 #define CLI_PRINT_BUFFER_SIZE 256
@@ -60,8 +61,11 @@
 /**
  * Indicates that live autocompletion is enabled
  */
-#define CLI_FLAG_AUTOCOMPLETE_ENABLED 0x20u
-
+#ifdef CLI_AUTOCOMPLETE_ENABLE
+	#define CLI_FLAG_AUTOCOMPLETE_ENABLED 0x20u
+#else
+	#define CLI_FLAG_AUTOCOMPLETE_ENABLED 0x00u
+#endif
 /**
 * Indicates that cursor direction should be forward
 */

@@ -32,7 +32,7 @@ typedef enum{SPI_MODE_0, SPI_MODE_1, SPI_MODE_2, SPI_MODE_3} spi_mode_t;
 
 
 
-#define MIN_SHELL_UART	USART2
+#define MIN_SHELL_UART	UART7
 //*****************************************************************************
 // EXP_UART_RS485
 //*****************************************************************************
@@ -49,8 +49,8 @@ typedef enum{SPI_MODE_0, SPI_MODE_1, SPI_MODE_2, SPI_MODE_3} spi_mode_t;
 //*****************************************************************************
 // OBC_EXP_UART
 //*****************************************************************************
-#define EXP_UART_OBC_HANDLE				UART7
-#define EXP_UART_OBC_IRQ				UART7_IRQn
+//#define EXP_UART_OBC_HANDLE				UART7
+//#define EXP_UART_OBC_IRQ				UART7_IRQn
 
 
 //*****************************************************************************

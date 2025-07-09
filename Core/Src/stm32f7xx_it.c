@@ -26,6 +26,7 @@
 #include "uart_driver.h"
 #include "sst.h"
 #include "shell.h"
+#include "min_shell.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -211,15 +212,10 @@ void SysTick_Handler(void)
 /**
   * @brief This function handles USART6 global interrupt.
   */
-void USART6_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART6_IRQn 0 */
-	Shell_USART_IRQHandler();
-  /* USER CODE END USART6_IRQn 0 */
-  /* USER CODE BEGIN USART6_IRQn 1 */
-////////////////////////////
-  /* USER CODE END USART6_IRQn 1 */
-}
+
+/**
+  * @brief This function handles UART7 global interrupt.
+  */
 
 /* USER CODE BEGIN 1 */
 

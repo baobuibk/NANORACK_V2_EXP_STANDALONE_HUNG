@@ -1352,6 +1352,10 @@ static void MX_UART7_Init(void)
   GPIO_InitStruct.Alternate = LL_GPIO_AF_8;
   LL_GPIO_Init(EXP_UART_TX_GPIO_Port, &GPIO_InitStruct);
 
+  /* UART7 interrupt Init */
+  NVIC_SetPriority(UART7_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),11, 0));
+  NVIC_EnableIRQ(UART7_IRQn);
+
   /* USER CODE BEGIN UART7_Init 1 */
 
   /* USER CODE END UART7_Init 1 */
@@ -1494,7 +1498,7 @@ static void MX_USART6_UART_Init(void)
   /* USER CODE BEGIN USART6_Init 1 */
 
   /* USER CODE END USART6_Init 1 */
-  USART_InitStruct.BaudRate = 115200;
+  USART_InitStruct.BaudRate = 921600;
   USART_InitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
   USART_InitStruct.StopBits = LL_USART_STOPBITS_1;
   USART_InitStruct.Parity = LL_USART_PARITY_NONE;

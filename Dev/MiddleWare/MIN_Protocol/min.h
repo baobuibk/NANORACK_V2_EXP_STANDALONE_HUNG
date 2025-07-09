@@ -212,7 +212,7 @@ void min_init_context(struct min_context *self, uint8_t port);
 // Debug print
 //void min_debug_print(const char *msg, ...);
 	#include "uart_dbg.h"
-    #define min_debug_print(...) Printf(__VA_ARGS__)
+    #define min_debug_print(...) DBG(0,__VA_ARGS__)
 #else
 #define min_debug_print(...)
 #endif

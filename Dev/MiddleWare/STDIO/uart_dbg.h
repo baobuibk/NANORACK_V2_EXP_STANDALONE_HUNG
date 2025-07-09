@@ -10,6 +10,7 @@
 
 
 #include "uart_stdio.h"
+#include "configs.h"
 #include <stdint.h>
 
 /* Debug Levels */
@@ -23,7 +24,7 @@ typedef enum {
 extern UART_stdio_t uart_stdio;
 
 /* Debug Macro */
-#define DEBUG_ENABLE
+
 #ifdef DEBUG_ENABLE
     #define DBG(level, format, ...) do { \
         const char* prefix; \

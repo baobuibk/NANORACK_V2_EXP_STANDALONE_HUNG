@@ -16,7 +16,11 @@
 #define UNUSED_FUNC __attribute__((unused))
 #endif
 
-#define SHELL_UART_AUTO_COMPLETE 		1
+/* En/Dis Debug/AutoComplete CMD */
+//#define DEBUG_ENABLE
+//#define CLI_AUTOCOMPLETE_ENABLE
+
+
 #define SHELL_UART_INITATION		    "EXP $ "
 
 // Kích thước của uint16_t (thường là 2 byte)

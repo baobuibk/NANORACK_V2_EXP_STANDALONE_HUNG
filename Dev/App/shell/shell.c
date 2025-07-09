@@ -43,7 +43,6 @@ uint8_t tx_static_buffer[SHELL_UART_TX_BUFFER_SIZE];
 
 #define SHELL_POLL_INTERVAL 10
 
-#define SHELL_UART_AUTO_COMPLETE 		1
 #define SHELL_UART_INITATION		    "EXP $ "
 
 static EmbeddedCli * shell_uart_cli = NULL;
@@ -205,17 +204,12 @@ void CLI_UART_stdio_tx_callback(shell_task_t * const me) {
 	if (ret) SST_Task_post(&me->super, (SST_Evt *)&uart_empty_evt);
 }
 
-void Shell_USART_IRQHandler(void)
+
+// USART6_IRQHandler
+void USART6_IRQHandler(void)
 {
-  /* USER CODE BEGIN USART2_IRQn 0 */
 	CLI_UART_stdio_rx_callback();
-//	uart_stdio_tx_callback(&uart_stdio);
 	CLI_UART_stdio_tx_callback(&shell_task_inst);
-
-  /* USER CODE END USART2_IRQn 0 */
-  /* USER CODE BEGIN USART2_IRQn 1 */
-
-  /* USER CODE END USART2_IRQn 1 */
 }
 
 static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, shell_evt_t const * const e) {
