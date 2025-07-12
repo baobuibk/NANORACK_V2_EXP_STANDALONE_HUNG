@@ -31,7 +31,7 @@ static experiment_evt_t const start_measuring_evt = {.super = {.sig = EVT_EXPERI
 static experiment_evt_t const start_sending_evt = {.super = {.sig = EVT_EXPERIMENT_START_SENDING} };
 
 static data_profile_t remain_data_profile;
-static uint16_t ram_buffer[4*1024];
+static uint16_t ram_buffer[2*1024];
 static uint16_t batch_size;
 
 experiment_evt_t experiment_task_current_event = {0}; // Current event being processed
@@ -246,6 +246,8 @@ uint32_t experiment_task_get_ram_data(experiment_task_t * const me, uint32_t sta
 	me->data_profile.num_data = num_data;
 	me->data_profile.mode = mode;
 	pshell_task_instt->crc = 0xffff;
+	pshell_task_instt->total_word = num_data;
+	pshell_task_instt->total_remain = num_data;
 	SST_Task_post(&me->super, (SST_Evt *)&start_sending_evt);
 	return ERROR_OK;
 }

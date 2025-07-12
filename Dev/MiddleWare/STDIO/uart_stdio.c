@@ -56,7 +56,7 @@ bool uart_stdio_read(UART_stdio_t* me, uint8_t* buffer, uint32_t* rec_num) {
 
     while (count < *rec_num) {
         result = circular_char_buffer_pop(me->rx_buffer, &buffer[count]);
-        if (!result) {
+        if (result) {
             break;
         }
         count++;

@@ -67,6 +67,10 @@
 #endif
 
 
+
+//#define MIN_DEBUG_PRINTING
+
+
 #ifndef NO_TRANSPORT_PROTOCOL
 #define TRANSPORT_PROTOCOL
 #endif
@@ -207,14 +211,11 @@ void min_init_context_validate(struct min_context *self, uint8_t port, void *p_r
 // (Can have multiple MIN contexts)
 void min_init_context(struct min_context *self, uint8_t port);
 #endif
-#define MIN_DEBUG_PRINTING
+
 #ifdef MIN_DEBUG_PRINTING
-// Debug print
-//void min_debug_print(const char *msg, ...);
-	#include "uart_dbg.h"
     #define min_debug_print(...) DBG(0,__VA_ARGS__)
 #else
-#define min_debug_print(...)
+	#define min_debug_print(...)
 #endif
 
 #ifdef __cplusplus

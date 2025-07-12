@@ -16,7 +16,7 @@
 DBC_MODULE_NAME("min_shell")
 
 #define MIN_SHELL_POLL_INTERVAL_MS 10 // Polling interval in milliseconds
-#define MIN_SHELL_TASK_NUM_EVENTS 30
+#define MIN_SHELL_TASK_NUM_EVENTS 10
 #define MIN_SHELL_RECEIVED_DATA_BUFFER_SIZE 256
 min_shell_task_t min_shell_inst;
 
@@ -31,12 +31,10 @@ circular_buffer_t min_shell_task_event_queue = {0}; // Circular buffer to hold s
 static state_t min_shell_state_process_handler(min_shell_task_t * const me, min_shell_evt_t const * const e);
 static void min_shell_task_dispatch(min_shell_task_t * const me, min_shell_evt_t * const e) ;
 
- static uint8_t          min_shell_received_data[MIN_SHELL_RECEIVED_DATA_BUFFER_SIZE];
- static min_shell_evt_t const entry_evt = {.super = {.sig = SIG_ENTRY} };
- static min_shell_evt_t const exit_evt = {.super = {.sig = SIG_EXIT} };
- static min_shell_evt_t has_data_evt = {.super = {.sig = EVT_MIN_SHELL_HAS_DATA},
-                                            .data_buff = min_shell_received_data,
-                                            .data_len = sizeof(min_shell_received_data)};
+static uint8_t min_shell_received_data[MIN_SHELL_RECEIVED_DATA_BUFFER_SIZE];
+static uint32_t min_shell_received_length = MIN_SHELL_RECEIVED_DATA_BUFFER_SIZE;
+static min_shell_evt_t const entry_evt = {.super = {.sig = SIG_ENTRY} };
+static min_shell_evt_t const exit_evt = {.super = {.sig = SIG_EXIT} };
 
 #define MIN_SHELL_UART_BUFFER_SIZE 256
 
@@ -45,15 +43,9 @@ static circular_char_buffer_t rx_buffer;
 static circular_char_buffer_t tx_buffer;
 static uint8_t rx_static_buffer[MIN_SHELL_UART_BUFFER_SIZE];
 static uint8_t tx_static_buffer[MIN_SHELL_UART_BUFFER_SIZE];
-UART_stdio_t min_shell_uart; // UART for MIN communication
+UART_stdio_t min_shell_stdio; // UART for MIN communication
 
-static void min_init(MIN_Context_t *ctx, uint8_t port) {
 
-    // Initialize the MIN context for the shell task
-    min_init_context(&ctx->min_ctx, 0);
-    ctx->timeout_callback = NULL;
-    
-}
 void MIN_Context_Init(MIN_Context_t *ctx, uint8_t port) {
     min_init_context(&ctx->min_ctx, port);
     min_transport_reset(&ctx->min_ctx, true);
@@ -67,11 +59,17 @@ void MIN_Context_Init(MIN_Context_t *ctx, uint8_t port) {
     }
 }
 
-void MIN_ReInit(MIN_Context_t *ctx) {
+void MIN_ReInit(MIN_Context_t *ctx)
+{
     min_init_context(&ctx->min_ctx, ctx->min_ctx.port);
     min_transport_reset(&ctx->min_ctx, true);
     ctx->last_poll_time = min_time_ms();
     ctx->timeout_triggered = false;
+}
+
+void MIN_RegisterTimeoutCallback(MIN_Context_t *ctx, void (*callback)(MIN_Context_t *ctx))
+{
+    ctx->timeout_callback = callback;
 }
 
 void MIN_App_Poll(MIN_Context_t *ctx, const uint8_t *rx_data, uint32_t rx_len) {
@@ -99,32 +97,44 @@ void MIN_App_Poll(MIN_Context_t *ctx, const uint8_t *rx_data, uint32_t rx_len) {
 }
 
 
-void MIN_RegisterTimeoutCallback(MIN_Context_t *ctx, void (*callback)(MIN_Context_t *ctx)) {
-    ctx->timeout_callback = callback;
-}
-
 void MIN_Timeout_Handler(MIN_Context_t *ctx) {
 	min_debug_print("MIN-Timeout!\r\n");
 }
+
+
+
 // Khởi tạo bộ đệm vòng (item_size = 1 byte)
 void min_shell_stdio_init(void)
 {
 	circular_char_buffer_init(&rx_buffer, rx_static_buffer, MIN_SHELL_UART_BUFFER_SIZE);
 	circular_char_buffer_init(&tx_buffer, tx_static_buffer,  MIN_SHELL_UART_BUFFER_SIZE);
     // Khởi tạo UART_Stdio
-    uart_stdio_init(&min_shell_uart, MIN_SHELL_UART, &rx_buffer, &tx_buffer);
+    uart_stdio_init(&min_shell_stdio, MIN_SHELL_UART, &rx_buffer, &tx_buffer);
+
     // Kích hoạt UART
-    uart_stdio_active(&min_shell_uart);
+    uart_stdio_active(&min_shell_stdio);
 }
+
 static void min_shell_task_init(min_shell_task_t * const me, min_shell_evt_t const * const e) {
     DBC_ASSERT(1u, me != NULL);
-    // Initialize the MIN shell task
     me->min_context = &min_ctx; // Assign the context to the task
-    MIN_Context_Init(me->min_context,0);
+    MIN_Context_Init(me->min_context, EXP_MIN_PORT);
     MIN_RegisterTimeoutCallback(&min_ctx, MIN_Timeout_Handler);
     SST_TimeEvt_arm(&me->min_poll_timer, MIN_SHELL_POLL_INTERVAL_MS, MIN_SHELL_POLL_INTERVAL_MS); // Re-arm the timer
 }
 
+static void min_shell_task_dispatch(min_shell_task_t * const me, min_shell_evt_t * const e) {
+    DBC_ASSERT(4u, me != NULL);
+    DBC_ASSERT(5u, e != NULL);
+
+    min_shell_state_handler_t prev_state = me->state; /* save for later */
+    state_t status = (me->state)(me, e);
+
+    if (status == TRAN_STATUS) { /* transition taken? */
+        (prev_state)(me, &exit_evt);
+        (me->state)(me, &entry_evt);
+    }
+}
 
 static void min_shell_task_ctor(min_shell_task_t * const me, min_shell_task_init_t * const init) {
     DBC_ASSERT(2u, me != NULL);
@@ -136,16 +146,17 @@ static void min_shell_task_ctor(min_shell_task_t * const me, min_shell_task_init
     me->min_shell_uart = init->min_shell_uart; // Set the UART for MIN communication
     SST_TimeEvt_disarm(&me->min_poll_timer); // Disarm the polling timer
 }
-void min_shell_task_ctor_singleton() {
-    // Initialize the MIN shell task
-    //min_init(&min_ctx,0);
+
+void min_shell_task_ctor_singleton(void)
+{
+
     min_shell_stdio_init(); // Initialize the UART for MIN communication
     circular_buffer_init(&min_shell_task_event_queue,(uint8_t *)min_shell_task_event_buffer,sizeof(min_shell_task_event_buffer),MIN_SHELL_TASK_NUM_EVENTS,sizeof(min_shell_evt_t));
-
-    min_shell_task_init_t min_shell_task_init = {
+    min_shell_task_init_t min_shell_task_init =
+    {
         .init_state = min_shell_state_process_handler, // Set the initial state to process handler
         .min_context = &min_ctx, // Pointer to the MIN context
-        .min_shell_uart = &min_shell_uart, // Pointer to the UART for MIN communication
+        .min_shell_uart = &min_shell_stdio, // Pointer to the UART for MIN communication
         .current_evt = &min_shell_current_event, // Pointer to the current event being processed
         .min_shell_event_buffer = &min_shell_task_event_queue // Pointer to the circular buffer for events
     };
@@ -153,36 +164,36 @@ void min_shell_task_ctor_singleton() {
 }
 void min_shell_task_start(uint8_t priority)
 {
-    // Start the MIN shell task
     SST_Task_start(&min_shell_inst.super,priority);
  
 }
 static state_t min_shell_state_process_handler(min_shell_task_t * const me, min_shell_evt_t const * const e)
 {
     DBC_ASSERT(3u, me != NULL);
-    switch (e->super.sig) {
-        case EVT_MIN_POLL: {
-            // Handle periodic polling event
-            min_poll(&me->min_context->min_ctx,NULL,0);
+    switch (e->super.sig)
+    {
+    	case SIG_ENTRY:
+    		SST_TimeEvt_arm(&me->min_poll_timer, MIN_SHELL_POLL_INTERVAL_MS, MIN_SHELL_POLL_INTERVAL_MS);
+    		return HANDLED_STATUS;
+        case EVT_MIN_POLL:
 
+        	min_shell_received_length = MIN_SHELL_RECEIVED_DATA_BUFFER_SIZE;
+            if(uart_stdio_read(me->min_shell_uart, min_shell_received_data, &min_shell_received_length))
+			{
+            	MIN_App_Poll(me->min_context, min_shell_received_data, min_shell_received_length);
+			}
+
+            MIN_App_Poll(me->min_context, NULL, 0);
             return HANDLED_STATUS;
-        }
 
-        case EVT_MIN_SHELL_HAS_DATA: {
-            // Handle incoming data from MIN
-            min_poll(&me->min_context->min_ctx,e->data_buff,e->data_len);
-//            SST_TimeEvt_arm(&me->min_poll_timer, MIN_SHELL_POLL_INTERVAL_MS, 0); // Re-arm the timer
-            return HANDLED_STATUS;
-
-        }
-
-        default: {
-            // Handle other events if necessary
+        default:
             return IGNORED_STATUS;
-        }
     }
-    return HANDLED_STATUS;
 }
+
+
+
+
 
 ////////////////////////////////// CALLBACKS ///////////////////////////////////
 
@@ -193,14 +204,14 @@ uint16_t min_tx_space(uint8_t port)
   // Ignore 'port' because we have just one context. But in a bigger application
   // with multiple ports we could make an array indexed by port to select the serial
   // port we need to use.
-  return circular_char_buffer_get_free_space(min_shell_uart.tx_buffer);
+  return circular_char_buffer_get_free_space(min_shell_inst.min_shell_uart->rx_buffer);
 }
 
 // Send a character on the designated port.
 void min_tx_byte(uint8_t port, uint8_t byte)
 {
   // Ignore 'port' because we have just one context.
-	uart_stdio_write_char(&min_shell_uart, byte);
+	uart_stdio_write_char(min_shell_inst.min_shell_uart, byte);
 
 }
 
@@ -220,7 +231,11 @@ void MIN_RegisterResponseHandler(MIN_ResponseHandler handler)
 }
 
 void min_application_handler(uint8_t min_id, uint8_t const *min_payload, uint8_t len_payload, uint8_t port) {
-	 MIN_Context_t *ctx = registered_contexts[port];
+	if (port >= MAX_MIN_CONTEXTS)
+	{
+		return;
+	}
+	MIN_Context_t *ctx = registered_contexts[port];
     const MIN_Command_t *command_table = MIN_GetCommandTable();
     int table_size = MIN_GetCommandTableSize();
     for (int i = 0; i < table_size; i++) {
@@ -230,39 +245,29 @@ void min_application_handler(uint8_t min_id, uint8_t const *min_payload, uint8_t
         }
     }
 }
+
 void MIN_Send(MIN_Context_t *ctx, uint8_t min_id, const uint8_t *payload, uint8_t len) {
     if (min_queue_has_space_for_frame(&ctx->min_ctx, len)) {
         min_queue_frame(&ctx->min_ctx, min_id, payload, len);
     }
 }
-static void min_shell_task_dispatch(min_shell_task_t * const me, min_shell_evt_t * const e) {
-    DBC_ASSERT(4u, me != NULL);
-    DBC_ASSERT(5u, e != NULL);
 
-    min_shell_state_handler_t prev_state = me->state; /* save for later */
-    state_t status = (me->state)(me, e);
-
-    if (status == TRAN_STATUS) { /* transition taken? */
-        (prev_state)(me, &exit_evt);
-        (me->state)(me, &entry_evt);
-    }
-}
 
 
 void UART7_IRQHandler(void)
 {
-	min_shell_rx_callback();
-	uart_stdio_tx_callback(&min_shell_uart);
+	uart_stdio_rx_callback(min_shell_inst.min_shell_uart);
+	uart_stdio_tx_callback(min_shell_inst.min_shell_uart);
 }
 
-void min_shell_rx_callback(void) // Callback xử lý ngắt nhận
-{
-    // Read data from the UART and process it
-    if (LL_USART_IsActiveFlag_RXNE(MIN_SHELL_UART)) {
-    	min_shell_received_data[0] = LL_USART_ReceiveData8(MIN_SHELL_UART);
-
-    	has_data_evt.data_len = 1;
-        SST_Task_post(&min_shell_inst.super, (SST_Evt *)&has_data_evt); // Post event to shell task
-    }
-}
+//void min_shell_rx_callback(void) // Callback xử lý ngắt nhận
+//{
+//    // Read data from the UART and process it
+//    if (LL_USART_IsActiveFlag_RXNE(MIN_SHELL_UART)) {
+//    	min_shell_received_data[0] = LL_USART_ReceiveData8(MIN_SHELL_UART);
+//
+//    	has_data_evt.data_len = 1;
+//        SST_Task_post(&min_shell_inst.super, (SST_Evt *)&has_data_evt); // Post event to shell task
+//    }
+//}
 

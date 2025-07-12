@@ -6,53 +6,32 @@
  */
 
 #include "min_shell_command.h"
+#include "lt8722.h"
+#include "temperature_control.h"
+#include "experiment_task.h"
+#include "board.h"
+#include "adc_monitor.h"
+
+#include <stdlib.h>
 #include <string.h>
-#include "stdio.h"
+#include <string.h>
+#include <stdio.h>
+// =================================================================
+// Header Define
+// =================================================================
+extern temperature_control_task_t temperature_control_task_inst ;
+static temperature_control_task_t *ptemperature_control_task = &temperature_control_task_inst;
 
-uint32_t _scustom_data;
-uint32_t _ecustom_data;
-
-uint8_t _schunk_data[1024];
-uint8_t _echunk_data[1024];
-
-#define MAX_SIZE (100 * 1024) // 100KB
-#define RAM_D2_200KB_START ((uint8_t*)&_scustom_data)
-#define RAM_D2_200KB_SIZE  (200 * 1024) // 200KB
-
-#define SPI_RAM_START ((uint8_t*)&_schunk_data)
-#define SPI_RAM_SIZE  (10 * 1024)
-#define MAX_CHUNKS 20
+extern experiment_task_t experiment_task_inst;
+static experiment_task_t *pexperiment_task = &experiment_task_inst;
 
 
 
-uint32_t g_total_size;
-uint16_t g_chunk_size;
 
-uint32_t g_sample_rate;
-uint16_t g_chunk_crcs[MAX_CHUNKS];
+
 // =================================================================
 // Command Handlers
 // =================================================================
-
-//static void MIN_Handler_COLLECT_DATA(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-//    printf("Payload (%u bytes):", len);
-//    for (uint8_t i = 0; i < len; i++) {
-//        printf(" %02X", payload[i]);
-//    }
-//    printf("\r\n");
-//
-//    if (len < 6) {
-//        printf("Invalid payload length.\r\n");
-//        return;
-//    }
-//    uint16_t chunk_size = (payload[1] << 8) | payload[0];
-//    uint32_t sample = (payload[5] << 24) | (payload[4] << 16) | (payload[3] << 8) | payload[2];
-//
-//    printf("Message -Hex: chunk_size = %u (0x%04X), sample = %lu (0x%08lX)\r\n",
-//           chunk_size, chunk_size, (unsigned long)sample, (unsigned long)sample);
-//
-//    MIN_Send(ctx, GOT_IT, NULL, 0);
-//}
 
 static uint16_t UpdateCRC16_XMODEM(uint16_t crc, uint8_t byte) {
     const uint16_t polynomial = 0x1021; // CRC16 XMODEM
@@ -67,271 +46,299 @@ static uint16_t UpdateCRC16_XMODEM(uint16_t crc, uint8_t byte) {
     return crc;
 }
 
-static void MIN_Handler_SAMPLERATE_SET(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    if (len < 4) {
-        printf("Invalid payload length.\r\n");
-        return;
+static void MIN_Handler_TEST_CONNECTION_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+    min_shell_debug_print("Payload TEST_CONNECTION_CMD (%d bytes):\r\n", len);
+    MIN_Send(ctx, TEST_CONNECTION_ACK, payload, len);
+}
+
+static void MIN_Handler_SET_TEMP_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t buffer[2];
+	uint16_t ret = 0;
+    uint8_t ntc_index = payload[0];
+    uint8_t tec_mask = payload[1];
+    uint8_t heater_mask = payload[2];
+    uint16_t tec_mv = (payload[3] << 8) | payload[4];
+    uint8_t heater_duty = payload[5];
+    int16_t ref_temp = (payload[6] << 8) | payload[7];
+
+
+	if (ntc_index > 7)
+	{
+		ret++;
+		min_shell_debug_print("NTC index out of range (0-7): %d\r\n", ntc_index);
+	}
+	if (tec_mask > 0x0F)
+	{
+		ret++;
+		min_shell_debug_print("TEC mask out of range (0-3): %8B\r\n", tec_mask);
+	}
+	if (heater_mask > 0x0F)
+	{
+		ret++;
+		min_shell_debug_print("Heater mask out of range (0-3): %8B\r\n", heater_mask);
+	}
+	if ((tec_mv < 500)||(tec_mv > 3000))
+	{
+		ret++;
+		min_shell_debug_print("TEC voltage out of range (500-3000)mV: %d\r\n", tec_mv);
+	}
+	if (heater_duty > 100)
+	{
+		ret++;
+		min_shell_debug_print("Heater duty out of range (0-100): %d\r\n", heater_duty);
+	}
+	if (ref_temp > 1000)
+	{
+		ret++;
+		min_shell_debug_print("Heater duty out of range (max 100.0C): %d\r\n", ref_temp);
+	}
+
+	if(!ret)
+	{
+		// set index ntc
+		temperature_control_profile_ntc_register(ptemperature_control_task, ntc_index);
+		// set register tec
+		uint8_t tec_ovr = temperature_profile_tec_ovr_get(ptemperature_control_task);
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			if (tec_mask & (1<<i))			//tec i register
+			{
+				if(i == tec_ovr) min_shell_debug_print("tec[%d] registered in ovr mode\r\n", i);
+				else
+				{
+					temperature_control_profile_tec_register(ptemperature_control_task, i);
+					min_shell_debug_print("tec[%d] registered\r\n", i);
+				}
+			}
+			else	temperature_control_profile_tec_unregister(ptemperature_control_task, i);
+		}
+		// set register heater
+		for (uint8_t i = 0; i < 4; i++)
+		{
+			if (heater_mask & (1<<i))
+			{
+				temperature_control_profile_heater_register(ptemperature_control_task, i);
+				min_shell_debug_print("heater[%d] registered\r\n", i);
+			}
+			else temperature_control_profile_heater_unregister(ptemperature_control_task, i);
+		}
+		// set tec mv
+		temperature_control_profile_tec_voltage_set(ptemperature_control_task, tec_mv);
+		// set heater duty
+		temperature_control_profile_heater_duty_set(ptemperature_control_task, heater_duty);
+		// set ref temp
+		temperature_control_profile_setpoint_set(ptemperature_control_task, ref_temp);
+
+		buffer[0] = MIN_RESP_OK;
+		buffer[1] = MIN_ERROR_OK;
+	}
+
+	else
+	{
+		buffer[0] = MIN_RESP_FAIL;
+		buffer[1] = MIN_RESP_FAIL;
+	}
+
+
+    MIN_Send(ctx, SET_TEMP_PROFILE_ACK, buffer, 2);
+}
+
+static void MIN_Handler_START_TEMP_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t reserved = 0xFF;
+    min_shell_debug_print("Start temperature control auto\r\n");
+    temperature_control_auto_mode_set(ptemperature_control_task);
+    MIN_Send(ctx, START_TEMP_PROFILE_ACK, &reserved, 1);
+}
+
+static void MIN_Handler_STOP_TEMP_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t reserved = 0xFF;
+    min_shell_debug_print("Stop temperature control auto\r\n");
+    temperature_control_man_mode_set(ptemperature_control_task);
+    MIN_Send(ctx, STOP_TEMP_PROFILE_ACK, &reserved, 1);
+}
+
+static void MIN_Handler_SET_OVERRIDE_TEC_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t buffer[2];
+	uint16_t ret = 0;
+
+    uint8_t tec_idx = payload[0];
+    uint16_t tec_mv = (payload[1] << 8) | payload[2];
+
+    min_shell_debug_print("Min set tec override profile\r\n");
+
+    if(tec_idx > 4)
+    {
+    	ret++;
+    	min_shell_debug_print("tec index out of range (0-4)\r\n");
+    }
+    if ((tec_mv < 500)||(tec_mv > 3000))
+	{
+		ret++;
+		min_shell_debug_print("tec voltage out of range (500-3000)mV\r\n", tec_mv);
+	}
+
+    uint8_t tec_profile = temperature_control_profile_tec_get(ptemperature_control_task);
+	if(tec_idx < 4)
+	{
+		if (tec_profile & (1<<tec_idx))
+		{
+			min_shell_debug_print("tec[%d] registered in auto mode\r\n",tec_idx);
+			ret++;
+		}
+	}
+
+    if(!ret)
+    {
+
+    	if(tec_idx == 4)	min_shell_debug_print("tec ovr mode is off\r\n");
+    	temperature_profile_tec_ovr_register(ptemperature_control_task, tec_idx);
+    	temperature_profile_tec_ovr_voltage_set(ptemperature_control_task, tec_mv);
+    	buffer[0] = MIN_RESP_OK;
+    	buffer[1] = MIN_ERROR_OK;
+    }
+    else
+    {
+    	buffer[0] = MIN_RESP_FAIL;
+		buffer[1] = MIN_RESP_FAIL;
     }
 
-    g_sample_rate = (payload[3] << 24) | (payload[2] << 16) | (payload[1] << 8) | payload[0];
 
-    printf("Sample rate set to %lu Hz\r\n", (unsigned long)g_sample_rate);
-    MIN_Send(ctx, DONE, NULL, 0);
+    MIN_Send(ctx, SET_OVERRIDE_TEC_PROFILE_ACK, buffer, 2);
 }
 
-static void MIN_Handler_SAMPLERATE_GET(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    uint8_t response[4];
-
-    response[0] = (uint8_t)(g_sample_rate & 0xFF);
-    response[1] = (uint8_t)((g_sample_rate >> 8) & 0xFF);
-    response[2] = (uint8_t)((g_sample_rate >> 16) & 0xFF);
-    response[3] = (uint8_t)((g_sample_rate >> 24) & 0xFF);
-
-    printf("Sample rate retrieved: %lu Hz\r\n", (unsigned long)g_sample_rate);
-    MIN_Send(ctx, SAMPLERATE_GET_ACK, response, sizeof(response));
+static void MIN_Handler_START_OVERRIDE_TEC_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t reserved = 0xFF;
+	min_shell_debug_print("Min start tec override\r\n");
+	temperature_profile_tec_ovr_enable(ptemperature_control_task);
+	MIN_Send(ctx, START_OVERRIDE_TEC_PROFILE_ACK, &reserved, 1);
 }
 
-static void MIN_Handler_COLLECT_DATA(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-
-//	toOBC_SetState(toOBC_BUSY);
-
-    if (len < 4) {
-        printf("Invalid payload length.\r\n");
- //   	toOBC_SetState(toOBC_ERROR);
-        return;
-    }
-
-    uint32_t sample = (payload[3] << 24) | (payload[2] << 16) | (payload[1] << 8) | payload[0];
-    uint32_t total_size = sample * 2;
-
-    if (total_size > RAM_D2_200KB_SIZE) {
-        printf("Data size exceeds available RAM (%lu > %lu).\r\n",
-               (unsigned long)total_size, (unsigned long)RAM_D2_200KB_SIZE);
-//    	toOBC_SetState(toOBC_ERROR);
-        return;
-    }
-
-//    if (CSP_QSPI_Read(RAM_D2_200KB_START, 0, total_size) != HAL_OK) {
-//        printf("Error reading QSPI Flash.\r\n");
-//    	toOBC_SetState(toOBC_ERROR);
-//        return;
-//    }
-
-    g_total_size = total_size;
-
-    printf("Collected %lu samples, total size: %lu bytes\r\n",
-           (unsigned long)sample, (unsigned long)total_size);
-    MIN_Send(ctx, DONE, NULL, 0);
-//	toOBC_SetState(toOBC_READYSEND);
+static void MIN_Handler_STOP_OVERRIDE_TEC_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
+	uint8_t reserved = 0xFF;
+	min_shell_debug_print("Min stop tec override\r\n");
+	temperature_profile_tec_ovr_disable(ptemperature_control_task);
+	MIN_Send(ctx, STOP_OVERRIDE_TEC_PROFILE_ACK, &reserved, 1);
 }
 
-static void MIN_Handler_PRE_DATA(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    if (len < 2) {
-        printf("Invalid payload length.\r\n");
-        return;
-    }
+static void MIN_Handler_SET_SAMPLING_PROFILE_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len)
+{
 
-    if (g_total_size == 0) {
-        printf("No data collected yet.\r\n");
-        return;
-    }
+	min_shell_debug_print("Min set sampling profile\r\n");
+	uint8_t buffer[2];
+	uint16_t ret = 0;
+	uint16_t samp_rate = (payload[0] << 8) | payload[1];
+	uint8_t samp_pos = payload[2];
+	uint8_t percent = payload[3];
+	uint16_t pre_time = (payload[4] << 8) | payload[5];
+	uint16_t samp_time = (payload[6] << 8) | payload[7];
+	uint16_t post_time = (payload[8] << 8) | payload[9];
 
-    uint16_t chunk_size = (payload[1] << 8) | payload[0];
-    g_chunk_size = chunk_size;
+	if ((samp_rate < 1000) || (samp_rate > 800000))
+	{
+		ret++;
+		min_shell_debug_print("sampling rate out of range (1K-800K)\r\n");
+	}
+	samp_rate /= 1000;
 
-    uint32_t num_chunks = (g_total_size + g_chunk_size - 1) / g_chunk_size;
-    if (num_chunks > MAX_CHUNKS) {
-        printf("Too many chunks (%lu > %d).\r\n", (unsigned long)num_chunks, MAX_CHUNKS);
-        return;
-    }
+	if ((samp_pos == 0) || (samp_pos > 36))
+	{
+		ret++;
+		min_shell_debug_print("sample pos out of range (1-36)\r\n");
+	}
+	if (percent > 100)
+	{
+		ret++;
+		min_shell_debug_print("percent out of range (0-100)\r\n");
+	}
 
-    memset(g_chunk_crcs, 0, sizeof(g_chunk_crcs));
+	if (pre_time == 0)
+	{
+		ret++;
+		min_shell_debug_print("pre_time should be larger than 0\r\n");
+	}
+	pre_time *= 1000;
 
-    uint8_t response[1 + 2 * num_chunks];
-    response[0] = (uint8_t)num_chunks;
+	if (samp_time == 0)
+	{
+		ret++;
+		min_shell_debug_print("sample time should be larger than 0\r\n");
+	}
+	samp_time *= 1000;
 
-    for (uint32_t i = 0; i < num_chunks; i++) {
-        uint32_t offset = i * g_chunk_size;
-        uint32_t size = (i == num_chunks - 1) ? (g_total_size % g_chunk_size) : g_chunk_size;
-        if (size == 0) size = g_chunk_size;
-        uint16_t crc = 0x0000;
-        for (uint32_t j = 0; j < size; j++) {
-            crc = UpdateCRC16_XMODEM(crc, RAM_D2_200KB_START[offset + j]);
-        }
-        g_chunk_crcs[i] = crc;
-        response[1 + 2 * i] = (uint8_t)(crc >> 8);
-        response[2 + 2 * i] = (uint8_t)(crc & 0xFF);
-    }
+	if (post_time == 0)
+	{
+		ret++;
+		min_shell_debug_print("post_time should be larger than 0\r\n");
+	}
+	post_time *= 1000;
 
-    MIN_Send(ctx, PRE_DATA_ACK, response, sizeof(response));
-    printf("Pre Data Success: %lu Chunks\r\n", (unsigned long)num_chunks);
-    for (uint32_t i = 0; i < num_chunks; i++) {
-        printf("%lu -> CRC16: 0x%04X\r\n", (unsigned long)i, g_chunk_crcs[i]);
-    }
-}
+	uint32_t num_sample = ((pre_time + samp_time + post_time) * samp_rate )/1000000;
+	if (num_sample > 2048)	//larrger than 4MB
+	{
+		ret++;
+		min_shell_debug_print("total sample must be less than 2048K \r\n");
+	}
 
-static void MIN_Handler_PRE_CHUNK(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    if (len < 1) {
-        printf("Invalid payload length.\r\n");
-        return;
-    }
+	if(!ret)
+	{
+		experiment_profile_t profile;
+		profile.sampling_rate = samp_rate;		// kHz
+		profile.pos = samp_pos;
+		profile.laser_percent = percent;
+		profile.pre_time = pre_time;				// us
+		profile.experiment_time = samp_time;		// us
+		profile.post_time = post_time;				// us
+		profile.num_sample = num_sample;			// kSample
+		profile.period = 1000000 / samp_rate;	// ns
+		if(!experiment_task_set_profile(pexperiment_task,&profile))
+		{
+			buffer[0] = MIN_RESP_OK;
+			buffer[1] = MIN_ERROR_OK;
+			min_shell_debug_print("Min exp set profile done\r\n");
+		}
+		else
+		{
+			buffer[0] = MIN_RESP_FAIL;
+			buffer[1] = MIN_RESP_FAIL;
+			min_shell_debug_print("Min exp set profile error\r\n");
+		}
+	}
+	else
+	{
+		buffer[0] = MIN_RESP_FAIL;
+		buffer[1] = MIN_RESP_FAIL;
+	}
 
-    uint8_t chunk_num = payload[0];
-    uint32_t num_chunks = (g_total_size + g_chunk_size - 1) / g_chunk_size;
-
-    if (chunk_num >= num_chunks) {
-        printf("Invalid chunk number (%u >= %lu).\r\n", chunk_num, (unsigned long)num_chunks);
-        return;
-    }
-
-    uint32_t offset = chunk_num * g_chunk_size;
-    uint32_t size = (chunk_num == num_chunks - 1) ? (g_total_size % g_chunk_size) : g_chunk_size;
-    if (size == 0) size = g_chunk_size;
-
-    memset(SPI_RAM_START, 0, SPI_RAM_SIZE);
-    memcpy(SPI_RAM_START, RAM_D2_200KB_START + offset, size);
-
-//    SPI_SlaveDevice_ResetDMA((uint32_t)SPI_RAM_START, g_chunk_size);
-
-    uint8_t response[2];
-    response[0] = (uint8_t)(g_chunk_crcs[chunk_num] >> 8);
-    response[1] = (uint8_t)(g_chunk_crcs[chunk_num] & 0xFF);
-
-    MIN_Send(ctx, PRE_CHUNK_ACK, response, sizeof(response));
-    printf("Prepared chunk %u for SPI read, size: %lu bytes, CRC16: 0x%04X\r\n",
-           chunk_num, (unsigned long)size, g_chunk_crcs[chunk_num]);
-}
-
-static void MIN_Handler_COLLECT_PACKAGE(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    const uint32_t package_size = SPI_RAM_SIZE;
-    const uint32_t sample_count = package_size / 2;
-
-    memset(SPI_RAM_START, 0, SPI_RAM_SIZE);
-
-//    if (CSP_QSPI_Read(SPI_RAM_START, 0, SPI_RAM_SIZE) != HAL_OK) {
-//        printf("Error reading QSPI Flash.\r\n");
-//        return;
-//    }
-
-    uint16_t crc = 0x0000;
-    for (uint32_t i = 0; i < package_size; i++) {
-        crc = UpdateCRC16_XMODEM(crc, SPI_RAM_START[i]);
-    }
-
-    uint8_t response[2];
-    response[0] = (uint8_t)(crc >> 8);
-    response[1] = (uint8_t)(crc & 0xFF);
-
-    printf("Collected package: %lu samples, size: %lu bytes, CRC16: 0x%04X\r\n",
-           (unsigned long)sample_count, (unsigned long)package_size, crc);
-    MIN_Send(ctx, COLLECT_PACKAGE_ACK, response, sizeof(response));
-}
-
-static void MIN_Handler_READ_TEMP_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "25.3";
-
-    MIN_Send(ctx, TEMP_RESPONSE, response, sizeof(response) - 1);
-}
-
-static void MIN_Handler_CONTROL_TEMP_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    printf("Payload (%u bytes):", len);
-    for (uint8_t i = 0; i < len; i++) {
-        printf(" %02X", payload[i]);
-    }
-    printf("\r\n");
-
-    static const uint8_t response[] = "OK";
-    MIN_Send(ctx, CONTROL_TEMP_ACK, response, sizeof(response) - 1);
+	MIN_Send(ctx, SET_SAMPLING_PROFILE_ACK, buffer, 2);
 }
 
 
-static void MIN_Handler_HEARTBEAT_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "HB";
-    MIN_Send(ctx, HEARTBEAT_ACK, response, sizeof(response) - 1);
-}
 
-static void MIN_Handler_GET_STATUS_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "OK";
-    MIN_Send(ctx, STATUS_RESPONSE, response, sizeof(response) - 1);
-}
 
-static void MIN_Handler_RESET_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    MIN_ReInit(ctx);
-}
-
-static void MIN_Handler_PING_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    MIN_Send(ctx, PONG_CMD, NULL, 0);
-}
-
-static void MIN_Handler_DUMMY_CMD_1(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "D1";
-    MIN_Send(ctx, DUMMY_CMD_1, response, sizeof(response) - 1);
-}
-
-static void MIN_Handler_DUMMY_CMD_2(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "D2";
-    MIN_Send(ctx, DUMMY_CMD_2, response, sizeof(response) - 1);
-}
-
-static void MIN_Handler_CUSTOM_CMD_1(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "C1";
-    MIN_Send(ctx, CUSTOM_CMD_1_ACK, response, sizeof(response) - 1);
-}
-
-static void MIN_Handler_CUSTOM_CMD_2(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    (void)payload; (void)len;
-    static const uint8_t response[] = "C2";
-    MIN_Send(ctx, CUSTOM_CMD_2_ACK, response, sizeof(response) - 1);
-}
-
-static void MIN_Handler_TEST_CONNECTION_CMD(MIN_Context_t *ctx, const uint8_t *payload, uint8_t len) {
-    char buffer[256];
-    int offset = 0;
-    offset += snprintf(buffer + offset, sizeof(buffer) - offset, "Payload TEST_CONNECTION_CMD (%u bytes):", len);
-    for (uint8_t i = 0; i < len && offset < sizeof(buffer) - 4; i++) {
-        offset += snprintf(buffer + offset, sizeof(buffer) - offset, " %02X", payload[i]);
-    }
-    snprintf(buffer + offset, sizeof(buffer) - offset, "\r\n");
-    printf(buffer);
-    snprintf(buffer, sizeof(buffer), "Message: \"%s\"\r\n", payload);
-    printf(buffer);
-    MIN_Send(ctx, TEST_CONNECTION_ACK, NULL, 0);
-}
 
 // =================================================================
 // Command Table
 // =================================================================
 
+
+
 static const MIN_Command_t command_table[] = {
-    { READ_TEMP_CMD,    	MIN_Handler_READ_TEMP_CMD },
-    { CONTROL_TEMP_CMD, 	MIN_Handler_CONTROL_TEMP_CMD },
-    { HEARTBEAT_CMD,    	MIN_Handler_HEARTBEAT_CMD },
-    { GET_STATUS_CMD,   	MIN_Handler_GET_STATUS_CMD },
-    { RESET_CMD,        	MIN_Handler_RESET_CMD },
-    { PING_CMD,         	MIN_Handler_PING_CMD },
-    { DUMMY_CMD_1,      	MIN_Handler_DUMMY_CMD_1 },
-    { DUMMY_CMD_2,      	MIN_Handler_DUMMY_CMD_2 },
-    { CUSTOM_CMD_1,     	MIN_Handler_CUSTOM_CMD_1 },
-    { CUSTOM_CMD_2,     	MIN_Handler_CUSTOM_CMD_2 },
-    { COLLECT_DATA_CMD, 	MIN_Handler_COLLECT_DATA},
-    { PRE_DATA_CMD, 		MIN_Handler_PRE_DATA},
-    { PRE_CHUNK_CMD, 		MIN_Handler_PRE_CHUNK},
-	{ SAMPLERATE_SET_CMD,  	MIN_Handler_SAMPLERATE_SET },
-	{ SAMPLERATE_GET_CMD,  	MIN_Handler_SAMPLERATE_GET },
-	{ COLLECT_PACKAGE_CMD, 	MIN_Handler_COLLECT_PACKAGE },
+	{ TEST_CONNECTION_CMD,  			MIN_Handler_TEST_CONNECTION_CMD },
+	{ SET_TEMP_PROFILE_CMD,				MIN_Handler_SET_TEMP_PROFILE_CMD},
+	{ START_TEMP_PROFILE_CMD,  			MIN_Handler_START_TEMP_PROFILE_CMD },
+	{ STOP_TEMP_PROFILE_CMD,			MIN_Handler_STOP_TEMP_PROFILE_CMD},
+	{ SET_OVERRIDE_TEC_PROFILE_CMD,  	MIN_Handler_SET_OVERRIDE_TEC_PROFILE_CMD },
+	{ START_OVERRIDE_TEC_PROFILE_CMD,	MIN_Handler_START_OVERRIDE_TEC_PROFILE_CMD},
+	{ STOP_OVERRIDE_TEC_PROFILE_CMD,	MIN_Handler_STOP_OVERRIDE_TEC_PROFILE_CMD},
+	{ SET_SAMPLING_PROFILE_CMD,			MIN_Handler_SET_SAMPLING_PROFILE_CMD},
 
-
-	{ TEST_CONNECTION_CMD,  MIN_Handler_TEST_CONNECTION_CMD }
 };
 
 static const int command_table_size = sizeof(command_table) / sizeof(command_table[0]);

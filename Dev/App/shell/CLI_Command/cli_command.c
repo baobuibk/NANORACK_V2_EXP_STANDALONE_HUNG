@@ -176,7 +176,7 @@ static const CliCommandBinding cliStaticBindings_internal[] = {
 	{ "Experiment", "exp_set_profile",    "format: exp_set_profile sampling_rate pos laser_percent pre_time experiment_time post_time",  true, NULL, cmd_exp_set_profile },
 	{ "Experiment", "exp_get_profile",    "format: exp_get_profile",  true, NULL, cmd_exp_get_profile },
 	{ "Experiment", "exp_start_measuring",    "format: exp_start_measuring",  true, NULL, cmd_exp_start_measuring },
-	{ "Experiment", "exp_ram_read",    "format: exp_ram_read [address] [num_sample]",  true, NULL, cmd_exp_ram_read },
+	{ "Experiment", "exp_ram_read",    "format: exp_ram_read [address] [num_sample] [mode]",  true, NULL, cmd_exp_ram_read },
 //	{ NULL, "get_current",  "format: get_current [int/ext]",                                   true, NULL, CMD_Get_Current },
 //	    { NULL, "pd_get",       "format: pd_get [pd_index]",                                       true, NULL, CMD_PD_Get },
 //	    { NULL, "sp_set_pd",    "format: sp_set_pd [photo_index]",                                 true, NULL, CMD_Sample_Set_PD },
@@ -404,6 +404,7 @@ static void CMD_TEC_Profile_Register(EmbeddedCli *cli, char *args, void *context
 			}
 		}
 	}
+	cli_printf(cli, "OK\r\n");
 }
 
 static void CMD_TEC_Profile_Get(EmbeddedCli *cli, char *args, void *context)
@@ -507,13 +508,23 @@ static void CMD_TEC_OVR_Set_Output(EmbeddedCli *cli, char *args, void *context)
 		return;
 	}
 	const char *arg1 = embeddedCliGetToken(args, 1);
-	uint32_t tec_id = atoi(arg1);
 	uint8_t tec_profile = temperature_control_profile_tec_get(ptemperature_control_task);
-	if (tec_profile & (1<<tec_id))
+	uint8_t tec_id;
+	if(*arg1 == 'o')
 	{
-		cli_printf(cli, "tec[%d] registered in auto mode\r\n",tec_id);
-		return;
+		tec_id = 4;
+		cli_printf(cli, "tec ovr mode is off\r\n");
 	}
+	else if ((*arg1 >= '0') && (*arg1 <= '3'))
+	{
+		tec_id = atoi(arg1);
+		if (tec_profile & (1<<tec_id))
+		{
+			cli_printf(cli, "tec[%d] registered in auto mode\r\n",tec_id);
+			return;
+		}
+	}
+
 
 	const char *arg2 = embeddedCliGetToken(args, 2);
 	uint32_t mvolt = atoi(arg2);
@@ -523,6 +534,7 @@ static void CMD_TEC_OVR_Set_Output(EmbeddedCli *cli, char *args, void *context)
 		cli_printf(cli, "tec[%d] voltage is out of range (500mV-3000mV)\r\n");
 		return;
 	}
+
 
 	temperature_profile_tec_ovr_register(ptemperature_control_task, tec_id);
 	temperature_profile_tec_ovr_voltage_set(ptemperature_control_task, mvolt);
@@ -545,7 +557,11 @@ static void CMD_TEC_OVR_Get(EmbeddedCli *cli, char *args, void *context)
 {
 	uint8_t tec_idx = temperature_profile_tec_ovr_get(ptemperature_control_task);
 	uint16_t volt_mv = temperature_profile_tec_ovr_get_voltage(ptemperature_control_task);
-
+	if(tec_idx == 4)
+	{
+		cli_printf(cli, "tec ovr mode is off\r\n");
+		return;
+	}
 	cli_printf(cli, "tec[%d] registered in ovr mode with %dmV\r\n",tec_idx, volt_mv);
 }
 
@@ -829,7 +845,7 @@ static void cmd_exp_set_profile(EmbeddedCli *cli, char *args, void *context)
 	uint32_t pos = atoi(embeddedCliGetToken(args, 2));
 	if ((pos == 0) || (pos > 36))
 	{
-		cli_printf(cli, "pos rate out of range (1-36)\r\n");
+		cli_printf(cli, "pos out of range (1-36)\r\n");
 		return;
 	}
 
@@ -916,7 +932,7 @@ static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)
 
 	if (tokenCount != 3)
 	{
-		cli_printf(cli, "format: exp_ram_read [address] [num_sample]\r\n");
+		cli_printf(cli, "format: exp_ram_read [address] [num_sample] [mode]\r\n");
 		return;
 	}
 
@@ -940,7 +956,7 @@ static void cmd_exp_ram_read(EmbeddedCli *cli, char *args, void *context)
 	uint32_t num_data = atoi(embeddedCliGetToken(args, 2));		// calculated by halfword
 	if ((num_data > 2097152 - start_address)||(num_data < 512))
 	{
-		cli_printf(cli, "num sample out of range (512-%d samples)\r\n", 2097152 - start_address);
+		cli_printf(cli, "num samples out of range (512-%d samples)\r\n", 2097152 - start_address);
 		return;
 	}
 

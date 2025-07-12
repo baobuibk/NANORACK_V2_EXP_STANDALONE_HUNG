@@ -48,7 +48,7 @@ struct temperature_control_profile_t{
     };
 
 struct temperature_tec_ovr_profile_t{
-	uint8_t profile_tec_ovr_set;	//bit=1 is enabled, lower 4 bit for tec
+	uint8_t profile_tec_ovr_set;	//index of tec ovr set
     uint16_t tec_ovr_voltage; // output voltage for each tec
     };
 

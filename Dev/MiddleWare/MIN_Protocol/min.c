@@ -216,7 +216,7 @@ static struct transport_frame *transport_fifo_get(struct min_context *self, uint
 // Sends the given frame to the serial line
 static void transport_fifo_send(struct min_context *self, struct transport_frame *frame)
 {
-    min_debug_print("transport_fifo_send: min_id=%d, seq=%d, payload_len=%d\n", frame->min_id, frame->seq, frame->payload_len);
+    min_debug_print("transport_fifo_send: min_id=%d, seq=%d, payload_len=%d\r\n", frame->min_id, frame->seq, frame->payload_len);
     on_wire_bytes(self, frame->min_id | (uint8_t)0x80U, frame->seq, payloads_ring_buffer, frame->payload_offset, TRANSPORT_FIFO_SIZE_FRAME_DATA_MASK, frame->payload_len);
     frame->last_sent_time_ms = now;
 }
@@ -226,7 +226,7 @@ static void send_ack(struct min_context *self)
 {
     // In the embedded end we don't reassemble out-of-order frames and so never ask for retransmits. Payload is
     // always the same as the sequence number.
-    min_debug_print("send ACK: seq=%d\n", self->transport_fifo.rn);
+    min_debug_print("send ACK: seq=%d\r\n", self->transport_fifo.rn);
     if (ON_WIRE_SIZE(0) <= min_tx_space(self->port)) {
         on_wire_bytes(self, ACK, self->transport_fifo.rn, &self->transport_fifo.rn, 0, 0xffU, 1U);
         self->transport_fifo.last_sent_ack_time_ms = now;
@@ -397,7 +397,7 @@ static void valid_frame_received(struct min_context *self)
         // sequence numbers, etc.)
         // We don't send anything, we just do it. The other end can send frames to see if this end is
         // alive (pings, etc.) or just wait to get application frames.
-        min_debug_print("Received reset\n");
+        min_debug_print("Received reset\r\n");
         self->transport_fifo.resets_received++;
         transport_fifo_reset(self);
         break;

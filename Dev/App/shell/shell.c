@@ -241,9 +241,14 @@ static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, she
         		}
         	}
 
-        	me->state = shell_state_process_handler;
-        	SST_TimeEvt_arm(&me->shell_task_timeout_timer, SHELL_POLL_INTERVAL, SHELL_POLL_INTERVAL);
-            return TRAN_STATUS;
+        	if(!me->total_remain)
+			{
+        		me->state = shell_state_process_handler;
+				SST_TimeEvt_arm(&me->shell_task_timeout_timer, SHELL_POLL_INTERVAL, SHELL_POLL_INTERVAL);
+				return TRAN_STATUS;
+			}
+			else return HANDLED_STATUS;
+
         }
         case EVT_SHELL_UART_EMPTY:
     		while (me->htoa_buffer_index < 5)	//print the rest of previous htoa buffer
@@ -268,8 +273,14 @@ static state_t shell_state_send_long_buffer_handler(shell_task_t * const me, she
         			me->htoa_buffer_index++;
         		}
         	}
-        	me->state = shell_state_process_handler;
-            return TRAN_STATUS;
+
+
+			if(!me->total_remain)
+			{
+	        	me->state = shell_state_process_handler;
+	            return TRAN_STATUS;
+			}
+			else return HANDLED_STATUS;
 
         default:
             // Handle other events if necessary
@@ -284,7 +295,7 @@ static state_t shell_state_send_long_buffer_binary_handler(shell_task_t * const 
     switch (e->super.sig) {
         case SIG_ENTRY:
         	// Send first 3 byte header
-        	uint32_t header = (0x000FFFFF & me->remain_word) | 0xFFF00000;
+        	uint32_t header = (0x000FFFFF & me->total_word) | 0xFFF00000;
         	uint8_t bytes_temp[3];
 			bytes_temp[0] = (uint8_t)(header >> 16);
 			bytes_temp[1] = (uint8_t)(header >> 8);
@@ -309,17 +320,22 @@ static state_t shell_state_send_long_buffer_binary_handler(shell_task_t * const 
         		}
         	}
 
-			//Finally, send 2 byte crc
-			bytes_temp[0] = (uint8_t)(me->crc >> 8);
-			bytes_temp[1] = (uint8_t)me->crc;
-			for(uint8_t i = 0; i < 2; i++)
-			{
-				uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
-			}
 
-        	me->state = shell_state_process_handler;
-        	SST_TimeEvt_arm(&me->shell_task_timeout_timer, SHELL_POLL_INTERVAL, SHELL_POLL_INTERVAL);
-            return TRAN_STATUS;
+			if(!me->total_remain)
+			{
+				//Finally, send 2 byte crc
+				bytes_temp[0] = (uint8_t)(me->crc >> 8);
+				bytes_temp[1] = (uint8_t)me->crc;
+				for(uint8_t i = 0; i < 2; i++)
+				{
+					uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
+				}
+
+				me->state = shell_state_process_handler;
+				SST_TimeEvt_arm(&me->shell_task_timeout_timer, SHELL_POLL_INTERVAL, SHELL_POLL_INTERVAL);
+				return TRAN_STATUS;
+			}
+			else return HANDLED_STATUS;
 
         case EVT_SHELL_UART_EMPTY:
         	while (me->bin_buffer_index < 2)
@@ -347,16 +363,22 @@ static state_t shell_state_send_long_buffer_binary_handler(shell_task_t * const 
 				}
 			}
 
-        	//Finally, send 2 byte crc
-			bytes_temp[0] = (uint8_t)(me->crc >> 8);
-			bytes_temp[1] = (uint8_t)me->crc;
-			for(uint8_t i = 0; i < 2; i++)
-			{
-				uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
-			}
 
-        	me->state = shell_state_process_handler;
-            return TRAN_STATUS;
+			if(!me->total_remain)
+			{
+				//Finally, send 2 byte crc
+				bytes_temp[0] = (uint8_t)(me->crc >> 8);
+				bytes_temp[1] = (uint8_t)me->crc;
+				for(uint8_t i = 0; i < 2; i++)
+				{
+					uart_stdio_write_char(me->shell_uart_stdio, bytes_temp[i]);
+				}
+
+	        	me->state = shell_state_process_handler;
+	            return TRAN_STATUS;
+			}
+			else return HANDLED_STATUS;
+
 
         default:
             // Handle other events if necessary
@@ -404,6 +426,7 @@ void shell_send_buffer(shell_task_t * const me, uint16_t *buffer, uint32_t size,
 {
 	me->buffer_to_send = buffer;
 	me->remain_word = size;
+	me->total_remain -= size;
 
 	if(mode) SST_Task_post(&me->super, (SST_Evt *)&uart_send_buffer_bin_evt);
 	else SST_Task_post(&me->super, (SST_Evt *)&uart_send_buffer_evt);

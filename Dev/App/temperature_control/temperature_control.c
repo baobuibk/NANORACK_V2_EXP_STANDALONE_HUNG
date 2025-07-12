@@ -76,6 +76,7 @@ void temperature_control_task_ctor(temperature_control_task_t * const me, temper
     me->tec_inited = 0;
     me->temperature_control_profile.profile_tec_set = 0; // all off
     me->temperature_control_profile.profile_heater_set = 0; // all off
+    me->temperature_tec_ovr_profile.profile_tec_ovr_set = 4; // take index > 3 (out range)
     for (uint32_t i = 0; i< 4; i++) me->tec_table[i] = init->tec_table[i];
     SST_TimeEvt_disarm(&me->temperature_control_task_timeout_timer); // Disarm the timeout timer
 }
@@ -407,13 +408,14 @@ bool temperature_control_is_in_man_state(temperature_control_task_t * const me)
 
 uint32_t temperature_profile_tec_ovr_register(temperature_control_task_t *const me, uint8_t tec_idx)
 {
-	if (tec_idx > 3) return ERROR_NOT_SUPPORTED;
+	if (tec_idx > 4) return ERROR_NOT_SUPPORTED;
 	me->temperature_tec_ovr_profile.profile_tec_ovr_set = tec_idx;
 	return ERROR_OK;
 }
 
 uint32_t temperature_profile_tec_ovr_voltage_set(temperature_control_task_t *const me, uint16_t	volt_mv)
 {
+	if (me->temperature_tec_ovr_profile.profile_tec_ovr_set > 3) return ERROR_NOT_SUPPORTED;
 	if ((volt_mv < 500) || (volt_mv > 3000)) return ERROR_NOT_SUPPORTED;
 	me->temperature_tec_ovr_profile.tec_ovr_voltage = volt_mv;
 	return ERROR_OK;
@@ -421,6 +423,7 @@ uint32_t temperature_profile_tec_ovr_voltage_set(temperature_control_task_t *con
 
 uint32_t temperature_profile_tec_ovr_enable(temperature_control_task_t *const me)
 {
+	if (me->temperature_tec_ovr_profile.profile_tec_ovr_set > 3) return ERROR_NOT_SUPPORTED;
 	uint8_t tec_idx = me->temperature_tec_ovr_profile.profile_tec_ovr_set;
 	uint16_t volt_mV = me->temperature_tec_ovr_profile.tec_ovr_voltage;
 	uint8_t tec_status = me->tec_table[tec_idx]->status;
@@ -437,6 +440,7 @@ uint32_t temperature_profile_tec_ovr_enable(temperature_control_task_t *const me
 
 uint32_t temperature_profile_tec_ovr_disable(temperature_control_task_t *const me)
 {
+	if (me->temperature_tec_ovr_profile.profile_tec_ovr_set > 3) return ERROR_NOT_SUPPORTED;
 	uint8_t tec_idx = me->temperature_tec_ovr_profile.profile_tec_ovr_set;
 	int8_t ret;
 	ret = lt8722_set_swen_req(me->tec_table[tec_idx], 0);
@@ -453,7 +457,6 @@ uint16_t temperature_profile_tec_ovr_get_voltage(temperature_control_task_t *con
 {
 	return me->temperature_tec_ovr_profile.tec_ovr_voltage;
 }
-
 
 
 uint32_t temperature_control_profile_tec_register(temperature_control_task_t *const me,uint8_t tec_idx)
