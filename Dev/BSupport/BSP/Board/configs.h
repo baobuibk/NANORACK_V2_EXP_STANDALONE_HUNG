@@ -18,7 +18,7 @@
 
 /* En/Dis Debug/AutoComplete CMD */
 #define DEBUG_ENABLE
-#define CLI_AUTOCOMPLETE_ENABLE
+//#define CLI_AUTOCOMPLETE_ENABLE
 
 
 #define SHELL_UART_INITATION		    "EXP $ "
